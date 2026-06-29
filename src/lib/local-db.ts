@@ -1,5 +1,3 @@
-import Dexie, { type Table } from 'dexie';
-
 export interface Product {
   id?: number;
   name: string;
@@ -265,175 +263,208 @@ export interface Return {
   date: Date;
 }
 
-export class CashierDatabase extends Dexie {
-  products!: Table<Product>;
-  customers!: Table<Customer>;
-  suppliers!: Table<Supplier>;
-  supplierInvoices!: Table<SupplierInvoice>;
-  users!: Table<User>;
-  shifts!: Table<Shift>;
-  sales!: Table<Sale>;
-  categories!: Table<Category>;
-  payments!: Table<Payment>;
-  settings!: Table<Settings>;
-  offers!: Table<Offer>;
-  coupons!: Table<Coupon>;
-  vouchers!: Table<Voucher>;
-  campaigns!: Table<Campaign>;
-  returns!: Table<Return>;
-  customerGroups!: Table<CustomerGroup>;
-  whatsappLogs!: Table<WhatsAppLog>;
+// ===== طبقة توافق مع واجهة Dexie القديمة، مدعومة بـ API حقيقي + قاعدة بيانات مشتركة =====
+// كل الشاشات في النظام تستورد `db` من هذا الملف وتستخدم نفس الاستدعاءات التي كانت تُستخدم
+// مع IndexedDB (toArray, add, update, where().equals()...) — لذا أبقينا الواجهة كما هي
+// تمامًا، واستبدلنا التنفيذ الداخلي فقط بطلبات شبكة إلى /api/db/[table] بدل قاعدة بيانات
+// محلية في المتصفح، حتى تُحفظ البيانات في قاعدة بيانات حقيقية مشتركة بين كل الأجهزة.
 
-  constructor() {
-    super('CashierDB');
-    this.version(1).stores({
-      products: '++id, name, barcode, category',
-      customers: '++id, name, phone',
-      suppliers: '++id, name, phone',
-      supplierInvoices: '++id, supplierId, invoiceNumber, date',
-      users: '++id, username, role',
-      shifts: '++id, userId, status, startTime',
-      sales: '++id, invoiceNumber, customerId, shiftId, date, status',
-      categories: '++id, name',
-      payments: '++id, saleId, customerId, date',
+const DATE_FIELDS = new Set([
+  'date', 'createdAt', 'updatedAt', 'startTime', 'endTime', 'sentAt', 'expiryDate', 'startDate', 'endDate',
+]);
+
+function reviveDates<T>(obj: T): T {
+  if (obj && typeof obj === 'object') {
+    for (const key of Object.keys(obj as Record<string, unknown>)) {
+      const val = (obj as Record<string, unknown>)[key];
+      if (DATE_FIELDS.has(key) && typeof val === 'string') {
+        (obj as Record<string, unknown>)[key] = new Date(val);
+      }
+    }
+  }
+  return obj;
+}
+
+async function parseJsonOrThrow(res: Response) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+class WhereEqualsClause<T> {
+  constructor(private tableName: string, private field: string, private value: unknown) {}
+
+  private url() {
+    return `/api/db/${this.tableName}?${encodeURIComponent(this.field)}=${encodeURIComponent(String(this.value))}`;
+  }
+
+  async toArray(): Promise<T[]> {
+    const res = await fetch(this.url());
+    const rows = (await parseJsonOrThrow(res)) as T[];
+    return rows.map(reviveDates);
+  }
+
+  async first(): Promise<T | undefined> {
+    const rows = await this.toArray();
+    return rows[0];
+  }
+
+  async modify(changes: Partial<T>): Promise<number> {
+    const res = await fetch(this.url(), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changes),
     });
-    this.version(2).stores({
-      products: '++id, name, barcode, category',
-      customers: '++id, name, phone',
-      suppliers: '++id, name, phone',
-      supplierInvoices: '++id, supplierId, invoiceNumber, date',
-      users: '++id, username, role',
-      shifts: '++id, userId, status, startTime',
-      sales: '++id, invoiceNumber, customerId, shiftId, date, status',
-      categories: '++id, name',
-      payments: '++id, saleId, customerId, date',
-      settings: '++id',
-    });
-    this.version(3).stores({
-      products: '++id, name, barcode, category',
-      customers: '++id, name, phone',
-      suppliers: '++id, name, phone',
-      supplierInvoices: '++id, supplierId, invoiceNumber, date',
-      users: '++id, username, role',
-      shifts: '++id, userId, status, startTime',
-      sales: '++id, invoiceNumber, customerId, shiftId, date, status',
-      categories: '++id, name',
-      payments: '++id, saleId, customerId, date',
-      settings: '++id',
-      offers: '++id, targetType',
-      coupons: '++id, &code',
-      vouchers: '++id, &code',
-    });
-    this.version(4).stores({
-      products: '++id, name, barcode, category',
-      customers: '++id, name, phone',
-      suppliers: '++id, name, phone',
-      supplierInvoices: '++id, supplierId, invoiceNumber, date',
-      users: '++id, username, role',
-      shifts: '++id, userId, status, startTime',
-      sales: '++id, invoiceNumber, customerId, shiftId, date, status',
-      categories: '++id, name',
-      payments: '++id, saleId, customerId, date',
-      settings: '++id',
-      offers: '++id, targetType',
-      coupons: '++id, &code',
-      vouchers: '++id, &code',
-      campaigns: '++id',
-    });
-    this.version(5).stores({
-      products: '++id, name, barcode, category',
-      customers: '++id, name, phone',
-      suppliers: '++id, name, phone',
-      supplierInvoices: '++id, supplierId, invoiceNumber, date',
-      users: '++id, username, role',
-      shifts: '++id, userId, status, startTime',
-      sales: '++id, invoiceNumber, customerId, shiftId, date, status',
-      categories: '++id, name',
-      payments: '++id, saleId, customerId, date',
-      settings: '++id',
-      offers: '++id, targetType',
-      coupons: '++id, &code',
-      vouchers: '++id, &code',
-      campaigns: '++id',
-      returns: '++id, originalSaleId',
-    });
-    this.version(6).stores({
-      products: '++id, name, barcode, category',
-      customers: '++id, name, phone',
-      suppliers: '++id, name, phone',
-      supplierInvoices: '++id, supplierId, invoiceNumber, date',
-      users: '++id, username, role',
-      shifts: '++id, userId, status, startTime',
-      sales: '++id, invoiceNumber, customerId, shiftId, date, status',
-      categories: '++id, name',
-      payments: '++id, saleId, customerId, date',
-      settings: '++id',
-      offers: '++id, targetType',
-      coupons: '++id, &code',
-      vouchers: '++id, &code',
-      campaigns: '++id',
-      returns: '++id, originalSaleId',
-      customerGroups: '++id',
-      whatsappLogs: '++id, date',
-    });
+    const data = await parseJsonOrThrow(res);
+    return data.count ?? 0;
   }
 }
 
-export const db = new CashierDatabase();
-
-// Seed default admin user
-export async function seedDefaultData() {
-  const userCount = await db.users.count();
-  if (userCount === 0) {
-    await db.users.add({
-      name: 'مدير النظام',
-      username: 'admin',
-      password: 'admin123',
-      role: 'admin',
-      permissions: ['all'],
-      isActive: true,
-      createdAt: new Date(),
-    });
-  }
-
-  const categoryCount = await db.categories.count();
-  if (categoryCount === 0) {
-    await db.categories.bulkAdd([
-      { name: 'عام', createdAt: new Date() },
-      { name: 'مأكولات', createdAt: new Date() },
-      { name: 'مشروبات', createdAt: new Date() },
-      { name: 'إلكترونيات', createdAt: new Date() },
-      { name: 'ملابس', createdAt: new Date() },
-    ]);
-  }
-
-  const settingsCount = await db.settings.count();
-  if (settingsCount === 0) {
-    await db.settings.add({
-      id: 1,
-      storeName: 'نظام الكاشير',
-      storeLogo: '',
-      storeAddress: '',
-      storePhone: '',
-      taxNumber: '',
-      taxRate: 0.15,
-      currencyCode: 'SAR',
-      receiptFooter: 'شكراً لتسوقكم معنا',
-      showAddressOnReceipt: true,
-      showPhoneOnReceipt: true,
-      showTaxNumberOnReceipt: true,
-      paperWidth: '80mm',
-      displayWelcomeMessage: 'مرحباً بكم',
-      displayIdleImage: '',
-      displayBgColor: '#0f172a',
-      displayAccentColor: '#10b981',
-      loyaltyPointValue: 0.1,
-      whatsappCountryCode: '966',
-      enableScaleBarcodes: false,
-      scaleBarcodePrefix: '2',
-    });
+class WhereClause<T> {
+  constructor(private tableName: string, private field: string) {}
+  equals(value: unknown): WhereEqualsClause<T> {
+    return new WhereEqualsClause<T>(this.tableName, this.field, value);
   }
 }
+
+class OrderByReversedClause<T> {
+  constructor(private tableName: string, private field: string) {}
+  async toArray(): Promise<T[]> {
+    const res = await fetch(`/api/db/${this.tableName}?orderBy=${encodeURIComponent(this.field)}&dir=desc`);
+    const rows = (await parseJsonOrThrow(res)) as T[];
+    return rows.map(reviveDates);
+  }
+}
+
+class OrderByClause<T> {
+  constructor(private tableName: string, private field: string) {}
+  async toArray(): Promise<T[]> {
+    const res = await fetch(`/api/db/${this.tableName}?orderBy=${encodeURIComponent(this.field)}&dir=asc`);
+    const rows = (await parseJsonOrThrow(res)) as T[];
+    return rows.map(reviveDates);
+  }
+  reverse(): OrderByReversedClause<T> {
+    return new OrderByReversedClause<T>(this.tableName, this.field);
+  }
+}
+
+class FilterClause<T> {
+  constructor(private all: Promise<T[]>, private predicate: (item: T) => boolean) {}
+  async toArray(): Promise<T[]> {
+    return (await this.all).filter(this.predicate);
+  }
+  async first(): Promise<T | undefined> {
+    return (await this.all).find(this.predicate);
+  }
+}
+
+class ApiTable<T extends { id?: number }> {
+  constructor(private tableName: string) {}
+
+  async toArray(): Promise<T[]> {
+    const res = await fetch(`/api/db/${this.tableName}`);
+    const rows = (await parseJsonOrThrow(res)) as T[];
+    return rows.map(reviveDates);
+  }
+
+  async add(obj: Omit<T, 'id'> | T): Promise<number> {
+    const res = await fetch(`/api/db/${this.tableName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(obj),
+    });
+    const data = await parseJsonOrThrow(res);
+    return data.id;
+  }
+
+  async bulkAdd(arr: (Omit<T, 'id'> | T)[]): Promise<void> {
+    const res = await fetch(`/api/db/${this.tableName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(arr),
+    });
+    await parseJsonOrThrow(res);
+  }
+
+  async get(id: number): Promise<T | undefined> {
+    const res = await fetch(`/api/db/${this.tableName}/${id}`);
+    if (res.status === 404) return undefined;
+    const data = await parseJsonOrThrow(res);
+    return reviveDates(data as T);
+  }
+
+  async update(id: number, changes: Partial<T>): Promise<number> {
+    const res = await fetch(`/api/db/${this.tableName}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changes),
+    });
+    return res.ok ? 1 : 0;
+  }
+
+  async put(obj: T): Promise<number> {
+    const id = obj.id;
+    const res = await fetch(`/api/db/${this.tableName}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(obj),
+    });
+    const data = await parseJsonOrThrow(res);
+    return data.id;
+  }
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`/api/db/${this.tableName}/${id}`, { method: 'DELETE' });
+    await parseJsonOrThrow(res);
+  }
+
+  async clear(): Promise<void> {
+    const res = await fetch(`/api/db/${this.tableName}`, { method: 'DELETE' });
+    await parseJsonOrThrow(res);
+  }
+
+  async count(): Promise<number> {
+    return (await this.toArray()).length;
+  }
+
+  where(field: keyof T & string): WhereClause<T> {
+    return new WhereClause<T>(this.tableName, field);
+  }
+
+  orderBy(field: keyof T & string): OrderByClause<T> {
+    return new OrderByClause<T>(this.tableName, field);
+  }
+
+  filter(predicate: (item: T) => boolean): FilterClause<T> {
+    return new FilterClause<T>(this.toArray(), predicate);
+  }
+}
+
+class ApiDatabase {
+  products = new ApiTable<Product>('products');
+  customers = new ApiTable<Customer>('customers');
+  suppliers = new ApiTable<Supplier>('suppliers');
+  supplierInvoices = new ApiTable<SupplierInvoice>('supplierInvoices');
+  users = new ApiTable<User>('users');
+  shifts = new ApiTable<Shift>('shifts');
+  sales = new ApiTable<Sale>('sales');
+  categories = new ApiTable<Category>('categories');
+  payments = new ApiTable<Payment>('payments');
+  settings = new ApiTable<Settings>('settings');
+  offers = new ApiTable<Offer>('offers');
+  coupons = new ApiTable<Coupon>('coupons');
+  vouchers = new ApiTable<Voucher>('vouchers');
+  campaigns = new ApiTable<Campaign>('campaigns');
+  returns = new ApiTable<Return>('returns');
+  customerGroups = new ApiTable<CustomerGroup>('customerGroups');
+  whatsappLogs = new ApiTable<WhatsAppLog>('whatsappLogs');
+}
+
+export const db = new ApiDatabase();
+
+// التهيئة (إنشاء الجداول وحساب المدير الافتراضي) تتم تلقائيًا على الخادم عند أول طلب —
+// هذه الدالة باقية فقط للتوافق مع الشاشات التي كانت تستدعيها، ولا تحتاج عمل أي شيء بنفسها.
+export async function seedDefaultData(): Promise<void> {}
 
 export function generateInvoiceNumber(): string {
   const now = new Date();

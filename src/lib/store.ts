@@ -29,7 +29,10 @@ export const useAppStore = create<AppState>((set) => ({
     set({ settings });
   },
   setPendingReturnInvoice: (invoiceNumber) => set({ pendingReturnInvoice: invoiceNumber }),
-  logout: () => set({ currentUser: null, currentShift: null, activeTab: 'pos' }),
+  logout: () => {
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    set({ currentUser: null, currentShift: null, activeTab: 'pos' });
+  },
 }));
 
 let currentCurrencyCode = 'SAR';

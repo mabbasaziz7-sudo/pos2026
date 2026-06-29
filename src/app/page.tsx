@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useAppStore } from '@/lib/store';
 import Login from '@/components/login';
@@ -22,7 +23,20 @@ import Backup from '@/components/backup';
 import Settings from '@/components/settings';
 
 export default function HomePage() {
-  const { currentUser, activeTab } = useAppStore();
+  const { currentUser, activeTab, setCurrentUser } = useAppStore();
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) setCurrentUser(data.user);
+      })
+      .catch(() => {})
+      .finally(() => setCheckingSession(false));
+  }, [setCurrentUser]);
+
+  if (checkingSession) return null;
 
   if (!currentUser) {
     return (

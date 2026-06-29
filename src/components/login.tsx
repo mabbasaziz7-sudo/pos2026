@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, seedDefaultData } from '@/lib/local-db';
+import { db } from '@/lib/local-db';
 import { useAppStore } from '@/lib/store';
 import { Store, Eye, EyeOff, Lock, User } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -15,7 +15,6 @@ export default function Login() {
 
   useEffect(() => {
     (async () => {
-      await seedDefaultData();
       const storedSettings = await db.settings.get(1);
       if (storedSettings) setSettings(storedSettings);
     })();
@@ -30,20 +29,19 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await seedDefaultData();
-      const user = await db.users.where('username').equals(username.trim()).first();
-      if (!user || user.password !== password) {
-        toast.error('اسم المستخدم أو كلمة المرور غير صحيحة');
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة');
         setLoading(false);
         return;
       }
-      if (!user.isActive) {
-        toast.error('هذا الحساب معطل');
-        setLoading(false);
-        return;
-      }
-      setCurrentUser(user);
-      toast.success(`مرحباً ${user.name}`);
+      setCurrentUser(data.user);
+      toast.success(`مرحباً ${data.user.name}`);
     } catch (error) {
       toast.error('حدث خطأ أثناء تسجيل الدخول');
     } finally {
