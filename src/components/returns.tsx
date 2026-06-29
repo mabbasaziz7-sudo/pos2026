@@ -221,7 +221,7 @@ export default function Returns() {
       </div>
       <div class="receipt-center" style="margin-top:16px;">${barcodeSvg.outerHTML}</div>
     `;
-    openPrintWindow(`فاتورة مرتجع - ${r.returnNumber}`, body);
+    openPrintWindow(`فاتورة مرتجع - ${r.returnNumber}`, body, '500px', settings);
   };
 
   return (

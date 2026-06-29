@@ -164,6 +164,8 @@ export interface Settings {
   whatsappCountryCode: string;
   enableScaleBarcodes: boolean;
   scaleBarcodePrefix: string;
+  printAccentColor: string;
+  printFontFamily: string;
 }
 
 export interface Offer {

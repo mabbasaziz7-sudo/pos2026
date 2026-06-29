@@ -40,6 +40,8 @@ export default function Settings() {
   const [whatsappCountryCode, setWhatsappCountryCode] = useState('966');
   const [enableScaleBarcodes, setEnableScaleBarcodes] = useState(false);
   const [scaleBarcodePrefix, setScaleBarcodePrefix] = useState('2');
+  const [printAccentColor, setPrintAccentColor] = useState('#10b981');
+  const [printFontFamily, setPrintFontFamily] = useState('Tahoma, Arial, sans-serif');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,6 +68,8 @@ export default function Settings() {
         setWhatsappCountryCode(current.whatsappCountryCode ?? '966');
         setEnableScaleBarcodes(current.enableScaleBarcodes ?? false);
         setScaleBarcodePrefix(current.scaleBarcodePrefix ?? '2');
+        setPrintAccentColor(current.printAccentColor ?? '#10b981');
+        setPrintFontFamily(current.printFontFamily ?? 'Tahoma, Arial, sans-serif');
       }
       setLoading(false);
     })();
@@ -98,6 +102,8 @@ export default function Settings() {
       whatsappCountryCode: whatsappCountryCode.trim() || '966',
       enableScaleBarcodes,
       scaleBarcodePrefix: scaleBarcodePrefix.trim() || '2',
+      printAccentColor,
+      printFontFamily,
     };
     await db.settings.put(updated);
     setSettings(updated);
@@ -300,6 +306,44 @@ export default function Settings() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Receipt className="w-5 h-5 text-emerald-500" />
+          <h3 className="font-semibold text-slate-700">تخصيص المطبوعات (الفواتير، التقارير، ملخص الوردية، المرتجعات)</h3>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-2">لون العلامة التجارية</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={printAccentColor}
+                onChange={(e) => setPrintAccentColor(e.target.value)}
+                className="w-12 h-10 rounded-lg border border-slate-200 cursor-pointer"
+              />
+              <span className="text-sm text-slate-500 font-mono">{printAccentColor}</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">يُطبَّق على العناوين والإجماليات والخطوط الفاصلة في كل المطبوعات</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-2">خط المطبوعات</label>
+            <select
+              value={printFontFamily}
+              onChange={(e) => setPrintFontFamily(e.target.value)}
+              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              dir="rtl"
+            >
+              <option value="Tahoma, Arial, sans-serif">تاهوما (افتراضي)</option>
+              <option value="'Segoe UI', Arial, sans-serif">Segoe UI</option>
+              <option value="'Cairo', Tahoma, sans-serif">Cairo</option>
+              <option value="'Tajawal', Tahoma, sans-serif">Tajawal</option>
+              <option value="Georgia, 'Times New Roman', serif">كلاسيكي (Serif)</option>
+            </select>
           </div>
         </div>
       </div>

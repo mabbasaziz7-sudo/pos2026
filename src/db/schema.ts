@@ -172,6 +172,8 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'whatsappCountryCode', type: 'text', default: "'966'" },
       { name: 'enableScaleBarcodes', type: 'boolean', default: 'false' },
       { name: 'scaleBarcodePrefix', type: 'text', default: "'2'" },
+      { name: 'printAccentColor', type: 'text', default: "'#10b981'" },
+      { name: 'printFontFamily', type: 'text', default: "'Tahoma, Arial, sans-serif'" },
     ],
   },
   offers: {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, type Product, type Sale, type Customer, type Offer, type Coupon, type Voucher, generateInvoiceNumber, decodeScaleBarcode } from '@/lib/local-db';
 import { useAppStore, formatCurrency } from '@/lib/store';
-import { printShiftSummary } from '@/lib/print';
+import { printShiftSummary, googleFontLink } from '@/lib/print';
 import { sendInvoiceWhatsApp } from '@/lib/whatsapp-gateway';
 import { CUSTOMER_DISPLAY_CHANNEL, type CustomerDisplayMessage } from '@/lib/customer-display';
 import {
@@ -548,20 +548,24 @@ export default function POS() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
     const maxWidth = settings?.paperWidth === '58mm' ? '220px' : '300px';
+    const accent = settings?.printAccentColor || '#10b981';
+    const font = settings?.printFontFamily || 'Tahoma, Arial, sans-serif';
     printWindow.document.write(`
       <html dir="rtl">
         <head>
           <title>فاتورة ${lastSale?.invoiceNumber}</title>
+          ${googleFontLink(font)}
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: ${maxWidth}; margin: 0 auto; }
-            .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
+            :root { --accent: ${accent}; }
+            body { font-family: ${font}; padding: 20px; max-width: ${maxWidth}; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px dashed var(--accent); padding-bottom: 10px; margin-bottom: 10px; }
             .item { display: flex; justify-content: space-between; padding: 3px 0; }
-            .total { border-top: 2px solid #000; margin-top: 10px; padding-top: 10px; font-weight: bold; }
+            .total { border-top: 2px solid var(--accent); margin-top: 10px; padding-top: 10px; font-weight: bold; color: var(--accent); }
             .barcode { text-align: center; margin-top: 15px; }
             .receipt-logo { display: block; height: 56px; max-width: 100%; margin: 0 auto 8px; object-fit: contain; }
             .receipt-items-table { border-collapse: collapse; text-align: center; width: 100%; }
             .receipt-items-table th, .receipt-items-table td { text-align: center; padding: 4px 2px; border-bottom: 1px dashed #ccc; }
-            .receipt-items-table thead tr { background: #f1f5f9; }
+            .receipt-items-table thead tr { background: color-mix(in srgb, var(--accent) 15%, white); }
             .receipt-center { text-align: center; }
             .receipt-totals { text-align: center; }
             .receipt-row { display: flex; justify-content: center; gap: 8px; }
