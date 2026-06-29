@@ -7,6 +7,7 @@ import {
   buildWhereFromSearchParams,
   PUBLIC_READ_TABLES,
   requireSession,
+  serializeForColumn,
   serverError,
   stripSensitive,
   unauthorized,
@@ -49,7 +50,7 @@ export async function POST(req: Req, { params }: { params: Promise<{ table: stri
       if (presentCols.length === 0) continue;
       const placeholders = presentCols.map((_, i) => `$${i + 1}`).join(', ');
       const colList = presentCols.map((c) => `"${c}"`).join(', ');
-      const values = presentCols.map((c) => row[c]);
+      const values = presentCols.map((c) => serializeForColumn(table, c, row[c]));
       const result = await query(
         `INSERT INTO "${table}" (${colList}) VALUES (${placeholders}) RETURNING id`,
         values
@@ -76,7 +77,7 @@ export async function PATCH(req: Req, { params }: { params: Promise<{ table: str
     if (setCols.length === 0) return badRequest('لا توجد حقول صحيحة للتحديث');
 
     const setClause = setCols.map((c, i) => `"${c}" = $${i + 1}`).join(', ');
-    const setValues = setCols.map((c) => changes[c]);
+    const setValues = setCols.map((c) => serializeForColumn(table, c, changes[c]));
     const { clause, values: whereValues } = buildWhereFromSearchParams(table, searchParams, setCols.length + 1);
     if (!clause) return badRequest('يجب تحديد شرط للتحديث الجماعي');
 

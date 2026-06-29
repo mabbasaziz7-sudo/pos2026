@@ -13,6 +13,16 @@ export function allowedColumns(table: string): string[] {
   return SCHEMA[table].columns.map((c) => c.name);
 }
 
+// أعمدة jsonb يجب تحويلها لنص JSON بأنفسنا قبل تمريرها لمكتبة pg — وإلا فإنها
+// تُحوَّل تلقائيًا لصيغة Postgres ARRAY ({...}) بدل JSON، فيفشل الإدراج في العمود.
+export function serializeForColumn(table: string, col: string, value: unknown): unknown {
+  const def = SCHEMA[table].columns.find((c) => c.name === col);
+  if (def?.type === 'jsonb' && value !== null && value !== undefined && typeof value !== 'string') {
+    return JSON.stringify(value);
+  }
+  return value;
+}
+
 export function stripSensitive<T extends Record<string, unknown>>(table: string, row: T): T {
   const sensitive = SENSITIVE_COLUMNS[table];
   if (!sensitive) return row;

@@ -525,7 +525,7 @@ export default function POS() {
       loadCustomers();
       toast.success('تم إتمام البيع بنجاح');
     } catch (error) {
-      toast.error('حدث خطأ أثناء إتمام البيع');
+      toast.error(`حدث خطأ أثناء إتمام البيع: ${error instanceof Error ? error.message : 'غير معروف'}`);
     }
   };
 

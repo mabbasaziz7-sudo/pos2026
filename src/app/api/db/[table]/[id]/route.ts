@@ -6,6 +6,7 @@ import {
   notFound,
   PUBLIC_READ_TABLES,
   requireSession,
+  serializeForColumn,
   serverError,
   stripSensitive,
   unauthorized,
@@ -41,7 +42,7 @@ export async function PATCH(req: Req, { params }: { params: Promise<{ table: str
     if (setCols.length === 0) return badRequest('لا توجد حقول صحيحة للتحديث');
 
     const setClause = setCols.map((c, i) => `"${c}" = $${i + 2}`).join(', ');
-    const values = setCols.map((c) => changes[c]);
+    const values = setCols.map((c) => serializeForColumn(table, c, changes[c]));
     const result = await query(`UPDATE "${table}" SET ${setClause} WHERE id = $1 RETURNING id`, [id, ...values]);
     if (!result.rows[0]) return notFound();
     return NextResponse.json({ id: result.rows[0].id });
@@ -63,7 +64,7 @@ export async function PUT(req: Req, { params }: { params: Promise<{ table: strin
     const colList = presentCols.map((c) => `"${c}"`).join(', ');
     const placeholders = presentCols.map((_, i) => `$${i + 2}`).join(', ');
     const updateClause = presentCols.map((c, i) => `"${c}" = $${i + 2}`).join(', ');
-    const values = presentCols.map((c) => body[c]);
+    const values = presentCols.map((c) => serializeForColumn(table, c, body[c]));
 
     await query(
       `INSERT INTO "${table}" (id${colList ? ', ' + colList : ''}) VALUES ($1${placeholders ? ', ' + placeholders : ''})
