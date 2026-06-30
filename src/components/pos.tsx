@@ -1,6 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import dynamic from 'next/dynamic';
+
+// ssr: false ضروري لأن html5-qrcode يستخدم واجهات المتصفح (camera, MediaDevices)
+// التي لا تتوفر في Node.js أثناء بناء Next.js على الخادم.
+const CameraScanner = dynamic(() => import('./camera-scanner'), { ssr: false });
 import { db, type Product, type Sale, type Customer, type Offer, type Coupon, type Voucher, generateInvoiceNumber, decodeScaleBarcode } from '@/lib/local-db';
 import { useAppStore, formatCurrency } from '@/lib/store';
 import { printShiftSummary, googleFontLink } from '@/lib/print';
@@ -29,6 +34,7 @@ import {
   TrendingUp,
   TrendingDown,
   MessageCircle,
+  Camera,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
@@ -48,6 +54,7 @@ export default function POS() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'cash' | 'credit' | 'mixed'>('cash');
   const [paidAmount, setPaidAmount] = useState('');
@@ -356,13 +363,13 @@ export default function POS() {
     window.open('/customer-display', 'customerDisplay', 'width=1000,height=700');
   };
 
-  const handleBarcode = useCallback(
-    async (e: React.KeyboardEvent) => {
-      if (e.key !== 'Enter') return;
-      const code = barcodeInput.trim();
+  const processBarcode = useCallback(
+    async (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) return;
 
       if (settings?.enableScaleBarcodes) {
-        const decoded = decodeScaleBarcode(code, settings.scaleBarcodePrefix || '2');
+        const decoded = decodeScaleBarcode(trimmed, settings.scaleBarcodePrefix || '2');
         if (decoded) {
           const weighedProduct = await db.products.filter((p) => p.plu === decoded.plu).first();
           if (weighedProduct) {
@@ -376,7 +383,7 @@ export default function POS() {
         }
       }
 
-      const product = await db.products.where('barcode').equals(code).first();
+      const product = await db.products.where('barcode').equals(trimmed).first();
       if (product) {
         addToCart(product);
         setBarcodeInput('');
@@ -384,7 +391,15 @@ export default function POS() {
         toast.error('الباركود غير موجود');
       }
     },
-    [barcodeInput, settings]
+    [settings]
+  );
+
+  const handleBarcode = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      processBarcode(barcodeInput);
+    },
+    [barcodeInput, processBarcode]
   );
 
   const completeSale = async () => {
@@ -661,9 +676,16 @@ export default function POS() {
                   onChange={(e) => setBarcodeInput(e.target.value)}
                   onKeyDown={handleBarcode}
                   placeholder="مسح الباركود..."
-                  className="w-full pr-10 pl-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full pr-10 pl-10 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   dir="rtl"
                 />
+                <button
+                  onClick={() => setShowCameraScanner(true)}
+                  title="مسح بالكاميرا"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-emerald-500 transition-colors"
+                >
+                  <Camera className="w-5 h-5" />
+                </button>
               </div>
               <button
                 onClick={openCustomerDisplay}
@@ -1280,6 +1302,17 @@ export default function POS() {
             </div>
           </div>
         </div>
+      )}
+      {showCameraScanner && (
+        <Suspense fallback={null}>
+          <CameraScanner
+            onScan={(code) => {
+              setShowCameraScanner(false);
+              processBarcode(code);
+            }}
+            onClose={() => setShowCameraScanner(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
