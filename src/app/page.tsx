@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useAppStore } from '@/lib/store';
+import { db } from '@/lib/local-db';
 import Login from '@/components/login';
 import AppLayout from '@/components/app-layout';
 import POS from '@/components/pos';
@@ -23,18 +24,26 @@ import Backup from '@/components/backup';
 import Settings from '@/components/settings';
 
 export default function HomePage() {
-  const { currentUser, activeTab, setCurrentUser } = useAppStore();
+  const { currentUser, activeTab, setCurrentUser, setSettings } = useAppStore();
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.user) setCurrentUser(data.user);
-      })
-      .catch(() => {})
-      .finally(() => setCheckingSession(false));
-  }, [setCurrentUser]);
+    // استعادة الجلسة + الإعدادات معًا عند أي إعادة تحميل —
+    // بدون هذا يظل كود العملة (وغيره) على القيم الافتراضية حتى نهاية الجلسة
+    const restore = async () => {
+      try {
+        const [sessionData, storedSettings] = await Promise.all([
+          fetch('/api/auth/me').then((r) => r.json()).catch(() => ({})),
+          db.settings.get(1).catch(() => null),
+        ]);
+        if (sessionData.user) setCurrentUser(sessionData.user);
+        if (storedSettings) setSettings(storedSettings);
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+    restore();
+  }, [setCurrentUser, setSettings]);
 
   if (checkingSession) return null;
 
