@@ -112,6 +112,9 @@ export interface Sale {
   loyaltyPointsRedeemed: number;
   loyaltyDiscount: number;
   loyaltyPointsEarned: number;
+  hasDelivery?: boolean;
+  deliveryId?: number;
+  deliveryFee?: number;
 }
 
 export interface SaleItem {
@@ -168,10 +171,12 @@ export interface Settings {
   printFontFamily: string;
 }
 
+export interface BundleProduct { productId: number; productName: string; qty: number; }
+
 export interface Offer {
   id?: number;
   name: string;
-  targetType: 'product' | 'category';
+  targetType: 'product' | 'category' | 'bundle';
   productIds: number[];
   category: string;
   discountType: 'percentage' | 'fixed';
@@ -180,6 +185,9 @@ export interface Offer {
   endDate: Date;
   isActive: boolean;
   createdAt: Date;
+  // عرض مجمّع
+  bundleProducts?: BundleProduct[];
+  bundlePrice?: number;
 }
 
 export interface Coupon {
@@ -263,6 +271,57 @@ export interface Return {
   userName: string;
   shiftId?: number;
   date: Date;
+}
+
+// ===== ميزة تعليق الفاتورة (Park/Hold) =====
+export interface ParkedCartItem {
+  productId: number;
+  productName: string;
+  barcode: string;
+  price: number;
+  cost: number;
+  quantity: number;
+  discount: number;
+  image?: string;
+}
+export interface ParkedSale {
+  id?: number;
+  label?: string;
+  cartItems: ParkedCartItem[];
+  customerId?: number;
+  customerName?: string;
+  couponCode?: string;
+  couponDiscount: number;
+  voucherCode?: string;
+  voucherAmount: number;
+  loyaltyPointsRedeemed: number;
+  paymentType: 'cash' | 'credit' | 'mixed';
+  notes?: string;
+  createdAt: Date;
+}
+
+// ===== ميزة التوصيل =====
+export interface Delivery {
+  id?: number;
+  saleId?: number;
+  invoiceNumber?: string;
+  recipientName: string;
+  recipientPhone: string;
+  address: string;
+  notes?: string;
+  deliveryFee: number;
+  status: 'pending' | 'on_way' | 'delivered' | 'cancelled';
+  createdAt: Date;
+  deliveredAt?: Date;
+}
+
+// ===== عروض الجملة (تسعيرة متدرجة) =====
+export interface PriceTier {
+  id?: number;
+  productId: number;
+  minQty: number;
+  price: number;
+  createdAt: Date;
 }
 
 // ===== طبقة توافق مع واجهة Dexie القديمة، مدعومة بـ API حقيقي + قاعدة بيانات مشتركة =====
@@ -458,6 +517,9 @@ class ApiDatabase {
   vouchers = new ApiTable<Voucher>('vouchers');
   campaigns = new ApiTable<Campaign>('campaigns');
   returns = new ApiTable<Return>('returns');
+  parkedSales = new ApiTable<ParkedSale>('parkedSales');
+  deliveries = new ApiTable<Delivery>('deliveries');
+  priceTiers = new ApiTable<PriceTier>('priceTiers');
   customerGroups = new ApiTable<CustomerGroup>('customerGroups');
   whatsappLogs = new ApiTable<WhatsAppLog>('whatsappLogs');
 }

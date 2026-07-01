@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { db, type Product, type Category, generateBarcode } from '@/lib/local-db';
+import { db, type Product, type Category, type PriceTier, generateBarcode } from '@/lib/local-db';
 import { formatCurrency } from '@/lib/store';
 import {
   Search,
@@ -34,6 +34,9 @@ export default function Products() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  // ===== عروض الجملة (Price Tiers) =====
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
+  const [editingTiers, setEditingTiers] = useState<{minQty: string; price: string}[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -54,12 +57,33 @@ export default function Products() {
   }, []);
 
   const loadData = async () => {
-    const [prods, cats] = await Promise.all([
+    const [prods, cats, tiers] = await Promise.all([
       db.products.toArray(),
       db.categories.toArray(),
+      db.priceTiers.toArray(),
     ]);
     setProducts(prods);
     setCategories(cats);
+    setPriceTiers(tiers);
+  };
+
+  const tiersForProduct = (productId: number) =>
+    priceTiers.filter((t) => t.productId === productId).sort((a, b) => Number(a.minQty) - Number(b.minQty));
+
+  const openEditWithTiers = (product: Product) => {
+    const tiers = tiersForProduct(product.id!);
+    setEditingTiers(tiers.map((t) => ({ minQty: String(t.minQty), price: String(t.price) })));
+  };
+
+  const saveTiersForProduct = async (productId: number) => {
+    // حذف الشرائح القديمة وإعادة الإضافة
+    const existing = tiersForProduct(productId);
+    for (const t of existing) await db.priceTiers.delete(t.id!);
+    for (const t of editingTiers) {
+      const minQty = parseFloat(t.minQty);
+      const price = parseFloat(t.price);
+      if (minQty > 0 && price > 0) await db.priceTiers.add({ productId, minQty, price, createdAt: new Date() });
+    }
   };
 
   const addCategory = async () => {
@@ -105,6 +129,7 @@ export default function Products() {
 
   const openAddModal = () => {
     setEditingProduct(null);
+    setEditingTiers([]);
     setFormData({
       name: '',
       barcode: generateBarcode(),
@@ -123,6 +148,7 @@ export default function Products() {
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
+    openEditWithTiers(product);
     setFormData({
       name: product.name,
       barcode: product.barcode,
@@ -173,13 +199,16 @@ export default function Products() {
     };
 
     try {
+      let savedProductId: number;
       if (editingProduct) {
         await db.products.update(editingProduct.id!, { ...data, createdAt: editingProduct.createdAt });
+        savedProductId = editingProduct.id!;
         toast.success('تم تحديث المنتج');
       } else {
-        await db.products.add({ ...data, createdAt: new Date() } as Product);
+        savedProductId = await db.products.add({ ...data, createdAt: new Date() } as Product);
         toast.success('تم إضافة المنتج');
       }
+      await saveTiersForProduct(savedProductId);
       setShowModal(false);
       loadData();
     } catch (error) {
@@ -558,6 +587,32 @@ export default function Products() {
                 />
               </div>
             </div>
+            {/* ===== أسعار الجملة (تسعيرة متدرجة) ===== */}
+            <div className="border border-slate-200 rounded-xl p-4 mt-2">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-slate-700">أسعار الجملة (تسعيرة متدرجة)</label>
+                <button type="button" onClick={() => setEditingTiers([...editingTiers, { minQty: '', price: '' }])}
+                  className="text-emerald-500 text-sm hover:text-emerald-600">+ إضافة شريحة</button>
+              </div>
+              {editingTiers.length === 0 && (
+                <p className="text-xs text-slate-400">لا توجد شرائح — اضغط "إضافة شريحة" لتحديد سعر مخفّض عند كمية معينة</p>
+              )}
+              {editingTiers.map((tier, i) => (
+                <div key={i} className="flex items-center gap-2 mb-2">
+                  <span className="text-xs text-slate-500 flex-shrink-0">من</span>
+                  <input type="number" min={1} value={tier.minQty}
+                    onChange={(e) => setEditingTiers(prev => prev.map((t, j) => j === i ? { ...t, minQty: e.target.value } : t))}
+                    className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-center" placeholder="كمية" />
+                  <span className="text-xs text-slate-500 flex-shrink-0">وحدة → سعر</span>
+                  <input type="number" step="0.01" value={tier.price}
+                    onChange={(e) => setEditingTiers(prev => prev.map((t, j) => j === i ? { ...t, price: e.target.value } : t))}
+                    className="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-center" placeholder="السعر" />
+                  <button onClick={() => setEditingTiers(prev => prev.filter((_, j) => j !== i))}
+                    className="text-rose-400 hover:text-rose-600 text-sm flex-shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+
             <div className="flex gap-2 mt-6">
               <button
                 onClick={saveProduct}

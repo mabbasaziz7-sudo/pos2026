@@ -132,6 +132,9 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'loyaltyPointsRedeemed', type: 'numeric', default: '0' },
       { name: 'loyaltyDiscount', type: 'numeric', default: '0' },
       { name: 'loyaltyPointsEarned', type: 'numeric', default: '0' },
+      { name: 'hasDelivery', type: 'boolean', default: 'false', nullable: true },
+      { name: 'deliveryId', type: 'integer', nullable: true },
+      { name: 'deliveryFee', type: 'numeric', default: '0', nullable: true },
     ],
   },
   categories: {
@@ -189,6 +192,9 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'endDate', type: 'timestamp' },
       { name: 'isActive', type: 'boolean', default: 'true' },
       { name: 'createdAt', type: 'timestamp' },
+      // حقول العروض المجمعة (Bundle)
+      { name: 'bundleProducts', type: 'jsonb', nullable: true },
+      { name: 'bundlePrice', type: 'numeric', nullable: true },
     ],
   },
   coupons: {
@@ -262,6 +268,53 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'userName', type: 'text' },
       { name: 'shiftId', type: 'integer', nullable: true },
       { name: 'date', type: 'timestamp' },
+    ],
+  },
+
+  // ===== تعليق الفاتورة =====
+  parkedSales: {
+    columns: [
+      id(),
+      { name: 'label', type: 'text', nullable: true },
+      { name: 'cartItems', type: 'jsonb', default: "'[]'" },
+      { name: 'customerId', type: 'integer', nullable: true },
+      { name: 'customerName', type: 'text', nullable: true },
+      { name: 'couponCode', type: 'text', nullable: true },
+      { name: 'couponDiscount', type: 'numeric', default: '0' },
+      { name: 'voucherCode', type: 'text', nullable: true },
+      { name: 'voucherAmount', type: 'numeric', default: '0' },
+      { name: 'loyaltyPointsRedeemed', type: 'integer', default: '0' },
+      { name: 'paymentType', type: 'text', default: "'cash'" },
+      { name: 'notes', type: 'text', nullable: true },
+      { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
+
+  // ===== التوصيل =====
+  deliveries: {
+    columns: [
+      id(),
+      { name: 'saleId', type: 'integer', nullable: true },
+      { name: 'invoiceNumber', type: 'text', nullable: true },
+      { name: 'recipientName', type: 'text' },
+      { name: 'recipientPhone', type: 'text', default: "''" },
+      { name: 'address', type: 'text' },
+      { name: 'notes', type: 'text', nullable: true },
+      { name: 'deliveryFee', type: 'numeric', default: '0' },
+      { name: 'status', type: 'text', default: "'pending'" },
+      { name: 'createdAt', type: 'timestamp' },
+      { name: 'deliveredAt', type: 'timestamp', nullable: true },
+    ],
+  },
+
+  // ===== عروض الجملة (تسعيرة متدرجة) =====
+  priceTiers: {
+    columns: [
+      id(),
+      { name: 'productId', type: 'integer' },
+      { name: 'minQty', type: 'numeric' },
+      { name: 'price', type: 'numeric' },
+      { name: 'createdAt', type: 'timestamp' },
     ],
   },
 };

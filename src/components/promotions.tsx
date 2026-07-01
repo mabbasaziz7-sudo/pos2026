@@ -59,13 +59,23 @@ function OffersPanel() {
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
 
   const [name, setName] = useState('');
-  const [targetType, setTargetType] = useState<'product' | 'category'>('category');
+  const [targetType, setTargetType] = useState<'product' | 'category' | 'bundle'>('category');
   const [productIds, setProductIds] = useState<number[]>([]);
   const [category, setCategory] = useState('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [discountValue, setDiscountValue] = useState('10');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  // عرض مجمّع (Bundle)
+  const [bundleProducts, setBundleProducts] = useState<{productId: number; productName: string; qty: number}[]>([]);
+  const [bundlePrice, setBundlePrice] = useState('');
+  const addBundleProduct = (product: Product) => {
+    if (bundleProducts.find(b => b.productId === product.id)) return;
+    setBundleProducts(prev => [...prev, { productId: product.id!, productName: product.name, qty: 1 }]);
+  };
+  const removeBundleProduct = (productId: number) => setBundleProducts(prev => prev.filter(b => b.productId !== productId));
+  const updateBundleQty = (productId: number, qty: number) =>
+    setBundleProducts(prev => prev.map(b => b.productId === productId ? { ...b, qty: Math.max(1, qty) } : b));
 
   useEffect(() => {
     loadData();
@@ -95,6 +105,8 @@ function OffersPanel() {
       setDiscountValue(offer.discountValue.toString());
       setStartDate(toDateInput(offer.startDate));
       setEndDate(toDateInput(offer.endDate));
+      setBundleProducts(offer.bundleProducts || []);
+      setBundlePrice(offer.bundlePrice?.toString() || '');
     } else {
       setEditingOffer(null);
       setName('');
@@ -103,6 +115,8 @@ function OffersPanel() {
       setCategory(categories[0]?.name || '');
       setDiscountType('percentage');
       setDiscountValue('10');
+      setBundleProducts([]);
+      setBundlePrice('');
       const today = new Date().toISOString().split('T')[0];
       setStartDate(today);
       setEndDate(today);
@@ -132,17 +146,23 @@ function OffersPanel() {
       return;
     }
 
+    if (targetType === 'bundle' && bundleProducts.length < 2) {
+      toast.error('العرض المجمّع يحتاج منتجين على الأقل');
+      return;
+    }
     const data = {
       name: name.trim(),
       targetType,
       productIds: targetType === 'product' ? productIds : [],
       category: targetType === 'category' ? category : '',
       discountType,
-      discountValue: parseFloat(discountValue) || 0,
+      discountValue: targetType === 'bundle' ? 0 : parseFloat(discountValue) || 0,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       isActive: editingOffer?.isActive ?? true,
       createdAt: editingOffer?.createdAt || new Date(),
+      bundleProducts: targetType === 'bundle' ? bundleProducts : undefined,
+      bundlePrice: targetType === 'bundle' ? (parseFloat(bundlePrice) || 0) : undefined,
     };
 
     if (editingOffer) {
@@ -266,16 +286,20 @@ function OffersPanel() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">يُطبَّق على</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['category', 'product'] as const).map((t) => (
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { id: 'category', label: 'فئة كاملة' },
+                    { id: 'product', label: 'منتجات محددة' },
+                    { id: 'bundle', label: '🎁 عرض مجمّع' },
+                  ] as const).map((t) => (
                     <button
-                      key={t}
-                      onClick={() => setTargetType(t)}
+                      key={t.id}
+                      onClick={() => setTargetType(t.id)}
                       className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        targetType === t ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:bg-slate-50'
+                        targetType === t.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:bg-slate-50'
                       }`}
                     >
-                      {t === 'category' ? 'فئة كاملة' : 'منتجات محددة'}
+                      {t.label}
                     </button>
                   ))}
                 </div>
@@ -284,32 +308,52 @@ function OffersPanel() {
               {targetType === 'category' ? (
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">الفئة</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    dir="rtl"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
+                  <select value={category} onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" dir="rtl">
+                    {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
                 </div>
-              ) : (
+              ) : targetType === 'product' ? (
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-2">المنتجات</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-slate-200 rounded-lg">
                     {products.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => toggleProduct(p.id!)}
-                        className={`p-2 text-right text-sm rounded-lg border transition-colors ${
-                          productIds.includes(p.id!) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
+                      <button key={p.id} onClick={() => toggleProduct(p.id!)}
+                        className={`p-2 text-right text-sm rounded-lg border transition-colors ${productIds.includes(p.id!) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:bg-slate-50'}`}>
                         {p.name}
                       </button>
                     ))}
+                  </div>
+                </div>
+              ) : (
+                /* ===== عرض مجمّع ===== */
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">السعر الإجمالي للحزمة</label>
+                    <input type="number" step="0.01" value={bundlePrice} onChange={(e) => setBundlePrice(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="السعر المخفّض للحزمة كاملةً" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-2">منتجات الحزمة</label>
+                    {bundleProducts.map((bp) => (
+                      <div key={bp.productId} className="flex items-center gap-2 mb-2">
+                        <span className="flex-1 text-sm text-slate-700">{bp.productName}</span>
+                        <input type="number" min={1} value={bp.qty}
+                          onChange={(e) => updateBundleQty(bp.productId, parseInt(e.target.value) || 1)}
+                          className="w-16 px-2 py-1 border border-slate-200 rounded-lg text-sm text-center" />
+                        <span className="text-xs text-slate-400">قطعة</span>
+                        <button onClick={() => removeBundleProduct(bp.productId)} className="text-rose-400 hover:text-rose-600 text-xs">✕</button>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-36 overflow-y-auto p-2 border border-dashed border-slate-300 rounded-lg mt-1">
+                      {products.filter(p => !bundleProducts.find(b => b.productId === p.id)).map((p) => (
+                        <button key={p.id} onClick={() => addBundleProduct(p)}
+                          className="p-1.5 text-right text-xs rounded-lg border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 text-slate-600">
+                          + {p.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 // ssr: false ضروري لأن html5-qrcode يستخدم واجهات المتصفح (camera, MediaDevices)
 // التي لا تتوفر في Node.js أثناء بناء Next.js على الخادم.
 const CameraScanner = dynamic(() => import('./camera-scanner'), { ssr: false });
-import { db, type Product, type Sale, type Customer, type Offer, type Coupon, type Voucher, generateInvoiceNumber, decodeScaleBarcode } from '@/lib/local-db';
+import { db, type Product, type Sale, type Customer, type Offer, type Coupon, type Voucher, type ParkedSale, type PriceTier, generateInvoiceNumber, decodeScaleBarcode } from '@/lib/local-db';
 import { useAppStore, formatCurrency } from '@/lib/store';
 import { printShiftSummary, googleFontLink } from '@/lib/print';
 import { sendInvoiceWhatsApp } from '@/lib/whatsapp-gateway';
@@ -35,6 +35,9 @@ import {
   TrendingDown,
   MessageCircle,
   Camera,
+  Clock,
+  Truck,
+  Package2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
@@ -43,6 +46,7 @@ interface CartItem {
   product: Product;
   quantity: number;
   discount: number;
+  originalPrice?: number; // السعر الأصلي قبل تطبيق سعر الجملة
 }
 
 export default function POS() {
@@ -75,11 +79,26 @@ export default function POS() {
   const [voucherInput, setVoucherInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
   const [loyaltyPointsInput, setLoyaltyPointsInput] = useState('');
+  // ===== تعليق الفاتورة =====
+  const [parkedSales, setParkedSales] = useState<ParkedSale[]>([]);
+  const [showParkedModal, setShowParkedModal] = useState(false);
+  const [parkLabel, setParkLabel] = useState('');
+  // ===== التوصيل =====
+  const [hasDelivery, setHasDelivery] = useState(false);
+  const [deliveryName, setDeliveryName] = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState('0');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  // ===== عروض الجملة (تسعيرة متدرجة) =====
+  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
 
   useEffect(() => {
     loadProducts();
     loadCustomers();
     loadOffers();
+    loadParkedSales();
+    loadPriceTiers();
     checkShift();
   }, []);
 
@@ -108,6 +127,90 @@ export default function POS() {
   const loadOffers = async () => {
     const all = await db.offers.toArray();
     setOffers(all);
+  };
+
+  const loadParkedSales = async () => {
+    const all = await db.parkedSales.orderBy('createdAt').reverse().toArray();
+    setParkedSales(all);
+  };
+
+  const loadPriceTiers = async () => {
+    const all = await db.priceTiers.toArray();
+    setPriceTiers(all);
+  };
+
+  // أفضل سعر جملة لمنتج بكمية معينة
+  const getWholesalePrice = (productId: number, qty: number, basePrice: number): number => {
+    const tiers = priceTiers
+      .filter((t) => t.productId === productId && Number(t.minQty) <= qty)
+      .sort((a, b) => Number(b.minQty) - Number(a.minQty));
+    return tiers.length > 0 ? Number(tiers[0].price) : basePrice;
+  };
+
+  // ===== تعليق الفاتورة =====
+  const parkCurrentSale = async () => {
+    if (cart.length === 0) { toast.error('السلة فارغة'); return; }
+    await db.parkedSales.add({
+      label: parkLabel || `فاتورة ${new Date().toLocaleTimeString('ar-SA')}`,
+      cartItems: cart.map((item) => ({
+        productId: item.product.id!,
+        productName: item.product.name,
+        barcode: item.product.barcode,
+        price: item.product.price,
+        cost: item.product.cost,
+        quantity: item.quantity,
+        discount: item.discount,
+        image: item.product.image,
+      })),
+      customerId: selectedCustomer?.id,
+      customerName: selectedCustomer?.name,
+      couponCode: appliedCoupon?.code,
+      couponDiscount: couponDiscountAmount,
+      voucherCode: appliedVoucher?.code,
+      voucherAmount,
+      loyaltyPointsRedeemed,
+      paymentType,
+      createdAt: new Date(),
+    });
+    setCart([]);
+    setSelectedCustomer(null);
+    setAppliedCoupon(null);
+    setAppliedVoucher(null);
+    setParkLabel('');
+    setShowParkedModal(false);
+    toast.success('تم تعليق الفاتورة');
+    loadParkedSales();
+  };
+
+  const restoreParkedSale = async (parked: ParkedSale) => {
+    if (cart.length > 0 && !window.confirm('هل تريد مسح السلة الحالية واستعادة الفاتورة المعلقة؟')) return;
+    const allProducts = await db.products.toArray();
+    const productMap = Object.fromEntries(allProducts.map((p) => [p.id, p]));
+    const restoredCart = parked.cartItems
+      .map((ci) => {
+        const product = productMap[ci.productId];
+        if (!product) return null;
+        return { product: { ...product, price: ci.price }, quantity: ci.quantity, discount: ci.discount };
+      })
+      .filter(Boolean) as CartItem[];
+    setCart(restoredCart);
+    if (parked.customerId) {
+      const cust = await db.customers.get(parked.customerId);
+      if (cust) setSelectedCustomer(cust);
+    }
+    if (parked.couponCode) {
+      const coupon = await db.coupons.where('code').equals(parked.couponCode).first();
+      if (coupon) setAppliedCoupon(coupon);
+    }
+    if (parked.voucherCode) {
+      const voucher = await db.vouchers.where('code').equals(parked.voucherCode).first();
+      if (voucher) setAppliedVoucher(voucher);
+    }
+    setPaymentType(parked.paymentType);
+    await db.parkedSales.delete(parked.id!);
+    setShowParkedModal(false);
+    toast.success('تم استعادة الفاتورة المعلقة');
+    loadParkedSales();
   };
 
   const getOfferDiscountPercent = (product: Product) => {
@@ -203,12 +306,19 @@ export default function POS() {
         return prev;
       }
       if (existing) {
+        // أعِد تطبيق سعر الجملة بالكمية الجديدة
+        const originalPrice = existing.originalPrice ?? product.price;
+        const tierPrice = getWholesalePrice(product.id!, newQty, originalPrice);
         return prev.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: newQty } : item
+          item.product.id === product.id
+            ? { ...item, quantity: newQty, product: { ...item.product, price: tierPrice } }
+            : item
         );
       }
       const discount = Math.max(product.discount || 0, getOfferDiscountPercent(product));
-      return [...prev, { product, quantity, discount }];
+      const tierPrice = getWholesalePrice(product.id!, quantity, product.price);
+      const productWithTier = tierPrice !== product.price ? { ...product, price: tierPrice } : product;
+      return [...prev, { product: productWithTier, quantity, discount, originalPrice: product.price }];
     });
   };
 
@@ -222,7 +332,9 @@ export default function POS() {
             toast.error('الكمية المطلوبة غير متوفرة');
             return item;
           }
-          return { ...item, quantity: newQty };
+          const originalPrice = item.originalPrice ?? item.product.price;
+          const tierPrice = getWholesalePrice(productId, newQty, originalPrice);
+          return { ...item, quantity: newQty, product: { ...item.product, price: tierPrice } };
         }
         return item;
       })
@@ -308,8 +420,30 @@ export default function POS() {
         )
       : 0;
 
-  const tax = (subtotal - couponDiscountAmount) * (settings?.taxRate ?? 0.15);
-  const total = subtotal - couponDiscountAmount + tax;
+  // ===== عروض الجملة المجمّعة (Bundle) =====
+  const activeBundles = offers.filter((o) => {
+    const now = new Date();
+    return o.isActive && o.targetType === 'bundle' && o.bundleProducts && o.bundlePrice != null
+      && new Date(o.startDate) <= now && now <= new Date(o.endDate);
+  });
+  const appliedBundles = activeBundles.filter((bundle) =>
+    (bundle.bundleProducts || []).every((bp) => {
+      const cartItem = cart.find((c) => c.product.id === bp.productId);
+      return cartItem && cartItem.quantity >= bp.qty;
+    })
+  );
+  const bundleDiscount = appliedBundles.reduce((sum, bundle) => {
+    const normalCost = (bundle.bundleProducts || []).reduce((s, bp) => {
+      const ci = cart.find((c) => c.product.id === bp.productId);
+      return s + (ci ? ci.product.price * bp.qty : 0);
+    }, 0);
+    return sum + Math.max(0, normalCost - (bundle.bundlePrice || 0));
+  }, 0);
+
+  const deliveryFeeNum = hasDelivery ? parseFloat(deliveryFee) || 0 : 0;
+
+  const tax = (subtotal - couponDiscountAmount - bundleDiscount) * (settings?.taxRate ?? 0.15);
+  const total = subtotal - couponDiscountAmount - bundleDiscount + tax + deliveryFeeNum;
 
   const voucherAmount = appliedVoucher ? Math.min(appliedVoucher.balance, total) : 0;
 
@@ -461,11 +595,29 @@ export default function POS() {
       loyaltyPointsRedeemed,
       loyaltyDiscount: loyaltyRedeemAmount,
       loyaltyPointsEarned: selectedCustomer ? Math.floor(total) : 0,
+      hasDelivery,
+      deliveryFee: deliveryFeeNum,
     };
 
     try {
       // Save sale
       const saleId = await db.sales.add(sale);
+
+      // حفظ التوصيل إن وُجد
+      if (hasDelivery && deliveryAddress.trim()) {
+        const deliveryId = await db.deliveries.add({
+          saleId,
+          invoiceNumber: sale.invoiceNumber,
+          recipientName: deliveryName || (selectedCustomer?.name ?? ''),
+          recipientPhone: deliveryPhone || (selectedCustomer?.phone ?? ''),
+          address: deliveryAddress,
+          notes: deliveryNotes,
+          deliveryFee: deliveryFeeNum,
+          status: 'pending',
+          createdAt: new Date(),
+        });
+        await db.sales.update(saleId, { deliveryId });
+      }
 
       // Update stock
       for (const item of cart) {
@@ -535,6 +687,12 @@ export default function POS() {
       setAppliedVoucher(null);
       setVoucherInput('');
       setLoyaltyPointsInput('');
+      setHasDelivery(false);
+      setDeliveryName('');
+      setDeliveryPhone('');
+      setDeliveryAddress('');
+      setDeliveryFee('0');
+      setDeliveryNotes('');
       setShowPaymentModal(false);
       loadProducts();
       loadCustomers();
@@ -753,12 +911,29 @@ export default function POS() {
                 السلة
               </h3>
               {cart.length > 0 && (
-                <button
-                  onClick={() => setCart([])}
-                  className="text-rose-500 text-sm hover:text-rose-600 flex items-center gap-1"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  إفراغ
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowParkedModal(true)}
+                    title="تعليق الفاتورة"
+                    className="text-amber-500 text-sm hover:text-amber-600 flex items-center gap-1"
+                  >
+                    <Clock className="w-4 h-4" />
+                    تعليق
+                  </button>
+                  <button
+                    onClick={() => setCart([])}
+                    className="text-rose-500 text-sm hover:text-rose-600 flex items-center gap-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    إفراغ
+                  </button>
+                </div>
+              )}
+              {parkedSales.length > 0 && cart.length === 0 && (
+                <button onClick={() => setShowParkedModal(true)}
+                  className="text-amber-500 text-sm hover:text-amber-600 flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  {parkedSales.length} فاتورة معلقة
                 </button>
               )}
             </div>
@@ -926,10 +1101,27 @@ export default function POS() {
                     <span>-{formatCurrency(couponDiscountAmount)}</span>
                   </div>
                 )}
+                {bundleDiscount > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+                    <span className="flex items-center gap-1"><Package2 className="w-3.5 h-3.5" /> خصم عروض مجمّعة</span>
+                    <span>-{formatCurrency(bundleDiscount)}</span>
+                  </div>
+                )}
+                {appliedBundles.map((b) => (
+                  <div key={b.id} className="text-xs text-emerald-600 bg-emerald-50 rounded px-2 py-1 flex items-center gap-1">
+                    <Package2 className="w-3 h-3" /> عرض مجمّع: {b.name}
+                  </div>
+                ))}
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">الضريبة</span>
                   <span className="font-medium">{formatCurrency(tax)}</span>
                 </div>
+                {deliveryFeeNum > 0 && (
+                  <div className="flex justify-between text-sm text-blue-600">
+                    <span className="flex items-center gap-1"><Truck className="w-3.5 h-3.5" /> رسوم التوصيل</span>
+                    <span>+{formatCurrency(deliveryFeeNum)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-1.5">
                   <span>الإجمالي</span>
                   <span>{formatCurrency(total)}</span>
@@ -1074,6 +1266,58 @@ export default function POS() {
                   rows={2}
                   placeholder="ملاحظات اختيارية..."
                 />
+              </div>
+
+              {/* ===== قسم التوصيل ===== */}
+              <div className="border border-slate-200 rounded-xl p-3">
+                <button
+                  type="button"
+                  onClick={() => setHasDelivery(!hasDelivery)}
+                  className={`w-full flex items-center gap-2 text-sm font-medium transition-colors ${hasDelivery ? 'text-blue-600' : 'text-slate-500'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${hasDelivery ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}`}>
+                    {hasDelivery && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <Truck className="w-4 h-4" />
+                  تفعيل التوصيل
+                </button>
+                {hasDelivery && (
+                  <div className="mt-3 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">اسم المستلم</label>
+                        <input type="text" value={deliveryName} onChange={(e) => setDeliveryName(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          placeholder={selectedCustomer?.name || 'الاسم'} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">هاتف المستلم</label>
+                        <input type="text" value={deliveryPhone} onChange={(e) => setDeliveryPhone(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          placeholder={selectedCustomer?.phone || 'رقم الهاتف'} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">عنوان التوصيل *</label>
+                      <input type="text" value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        placeholder="العنوان التفصيلي" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">رسوم التوصيل</label>
+                        <input type="number" step="0.01" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">ملاحظات التوصيل</label>
+                        <input type="text" value={deliveryNotes} onChange={(e) => setDeliveryNotes(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          placeholder="اختياري" />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
@@ -1303,6 +1547,61 @@ export default function POS() {
           </div>
         </div>
       )}
+      {/* ===== نافذة تعليق/استعادة الفاتورة ===== */}
+      {showParkedModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-500" /> الفواتير المعلقة
+              </h3>
+              <button onClick={() => setShowParkedModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            {/* تعليق الفاتورة الحالية */}
+            {cart.length > 0 && (
+              <div className="mb-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <p className="text-sm font-medium text-amber-700 mb-2">تعليق الفاتورة الحالية ({cart.length} منتج)</p>
+                <input type="text" value={parkLabel} onChange={(e) => setParkLabel(e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm mb-2"
+                  placeholder="تسمية للفاتورة (اختياري)" />
+                <button onClick={parkCurrentSale}
+                  className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium">
+                  تعليق الفاتورة
+                </button>
+              </div>
+            )}
+
+            {/* قائمة الفواتير المعلقة */}
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {parkedSales.length === 0 ? (
+                <p className="text-center py-6 text-slate-400 text-sm">لا توجد فواتير معلقة</p>
+              ) : (
+                parkedSales.map((parked) => (
+                  <div key={parked.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100">
+                    <div>
+                      <p className="font-medium text-sm text-slate-800">{parked.label || 'فاتورة معلقة'}</p>
+                      <p className="text-xs text-slate-500">{parked.cartItems.length} منتج — {parked.customerName || 'بدون عميل'}</p>
+                      <p className="text-xs text-slate-400">{new Date(parked.createdAt).toLocaleTimeString('ar-SA')}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => restoreParkedSale(parked)}
+                        className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg">
+                        استعادة
+                      </button>
+                      <button onClick={async () => { await db.parkedSales.delete(parked.id!); loadParkedSales(); }}
+                        className="px-2 py-1.5 text-rose-500 hover:bg-rose-50 text-xs rounded-lg">
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCameraScanner && (
         <Suspense fallback={null}>
           <CameraScanner
