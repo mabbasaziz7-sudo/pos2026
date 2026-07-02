@@ -73,6 +73,7 @@ export default function POS() {
   const invoiceBarcodeRef = useRef<SVGSVGElement>(null);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [lastDeliveryInfo, setLastDeliveryInfo] = useState<{name:string;phone:string;address:string;notes:string;fee:number}|null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -666,6 +667,18 @@ export default function POS() {
       const savedSale = await db.sales.get(saleId);
       if (savedSale) {
         setLastSale(savedSale);
+        // احفظ تفاصيل التوصيل قبل إعادة تعيينها حتى تظهر على الفاتورة
+        if (hasDelivery && deliveryAddress.trim()) {
+          setLastDeliveryInfo({
+            name: deliveryName || savedSale.customerName || '',
+            phone: deliveryPhone || '',
+            address: deliveryAddress,
+            notes: deliveryNotes,
+            fee: deliveryFeeNum,
+          });
+        } else {
+          setLastDeliveryInfo(null);
+        }
         setShowPrintModal(true);
       }
 
@@ -742,6 +755,12 @@ export default function POS() {
             .receipt-center { text-align: center; }
             .receipt-totals { text-align: center; }
             .receipt-row { display: flex; justify-content: center; gap: 8px; }
+            /* قسم التوصيل في الفاتورة */
+            .border-t-2.border-dashed { border-top: 2px dashed #ccc; margin-top: 8px; padding-top: 8px; }
+            .text-center { text-align: center; }
+            .font-medium { font-weight: 600; }
+            .font-bold { font-weight: bold; }
+            .italic { font-style: italic; }
           </style>
         </head>
         <body>
@@ -1430,6 +1449,22 @@ export default function POS() {
                   <p>طريقة الدفع</p>
                   <p>{lastSale.paymentType === 'cash' ? 'نقدي' : lastSale.paymentType === 'credit' ? 'آجل' : 'مختلط'}</p>
                 </div>
+
+                {/* معلومات التوصيل على الإيصال */}
+                {lastDeliveryInfo && (
+                  <div className="mt-3 pt-3 border-t-2 border-dashed border-slate-300">
+                    <p className="text-xs font-bold text-slate-700 flex items-center justify-center gap-1">
+                      <Truck className="w-3 h-3" /> معلومات التوصيل
+                    </p>
+                    {lastDeliveryInfo.name && <p className="text-xs text-slate-600 text-center mt-1">{lastDeliveryInfo.name}</p>}
+                    {lastDeliveryInfo.phone && <p className="text-xs text-slate-600 text-center">{lastDeliveryInfo.phone}</p>}
+                    <p className="text-xs text-slate-700 font-medium text-center">{lastDeliveryInfo.address}</p>
+                    {lastDeliveryInfo.notes && <p className="text-xs text-slate-500 text-center italic">{lastDeliveryInfo.notes}</p>}
+                    {lastDeliveryInfo.fee > 0 && (
+                      <p className="text-xs text-slate-600 text-center">رسوم التوصيل: {formatCurrency(lastDeliveryInfo.fee)}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="barcode text-center mt-3">
