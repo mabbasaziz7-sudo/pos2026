@@ -9,7 +9,8 @@ import {
   type Category,
   generateCouponCode,
 } from '@/lib/local-db';
-import { formatCurrency, formatDate } from '@/lib/store';
+import { formatCurrency, formatDate, useAppStore } from '@/lib/store';
+import { printOfferCard, printCouponCard } from '@/lib/print-cards';
 import { Tag, Ticket, Plus, Edit2, Trash2, X, Save, Check, XCircle, RefreshCw, QrCode, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
@@ -52,6 +53,7 @@ function isOfferLive(offer: Offer) {
 }
 
 function OffersPanel() {
+  const { settings } = useAppStore();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -242,6 +244,9 @@ function OffersPanel() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => printOfferCard(offer, settings)} title="طباعة بطاقة العرض" className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+                        <Printer className="w-4 h-4" />
+                      </button>
                       <button onClick={() => openModal(offer)} className="p-1.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors">
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -435,6 +440,7 @@ function OffersPanel() {
 }
 
 function CouponsPanel() {
+  const { settings } = useAppStore();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
@@ -622,6 +628,9 @@ function CouponsPanel() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => printCouponCard(coupon, settings)} title="طباعة بطاقة الكوبون" className="p-1.5 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors">
+                        <Printer className="w-4 h-4" />
+                      </button>
                       <button onClick={() => { setCodeView(coupon); setPrintCount('1'); }} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="عرض QR والباركود">
                         <QrCode className="w-4 h-4" />
                       </button>

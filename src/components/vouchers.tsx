@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { db, type Voucher, generateVoucherCode } from '@/lib/local-db';
-import { formatCurrency } from '@/lib/store';
+import { formatCurrency, useAppStore } from '@/lib/store';
+import { printVoucherCard } from '@/lib/print-cards';
 import { Gift, Plus, X, Save, Check, XCircle, RefreshCw, Trash2, QrCode, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 
 export default function Vouchers() {
+  const { settings } = useAppStore();
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [code, setCode] = useState('');
@@ -178,6 +180,13 @@ export default function Vouchers() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => printVoucherCard(voucher, settings)}
+                        className="p-1.5 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"
+                        title="طباعة بطاقة القسيمة"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => { setCodeView(voucher); setPrintCount('1'); }}
                         className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { db, type Customer, type Sale, type Payment } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatDate } from '@/lib/store';
 import { openPrintWindow } from '@/lib/print';
+import { printLoyaltyCard } from '@/lib/print-cards';
 import {
   Users,
   Plus,
@@ -288,6 +289,13 @@ export default function Customers() {
                   <td className="px-4 py-3 text-sm font-medium text-purple-600">{customer.loyaltyPoints ?? 0}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => printLoyaltyCard(customer, settings)}
+                        className="p-1.5 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"
+                        title="طباعة بطاقة ولاء"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => viewDetails(customer)}
                         className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
