@@ -189,6 +189,24 @@ export interface Settings {
   // تقرير المبيعات
   reportShowProfit: boolean;
   reportShowTopProducts: boolean;
+  // ===== بطاقات العروض والكوبونات والقسائم والولاء =====
+  offerCardShowLogo: boolean;
+  offerCardShowTarget: boolean;
+  offerCardShowDates: boolean;
+  offerCardShowStatus: boolean;
+  couponCardShowLogo: boolean;
+  couponCardShowBarcode: boolean;
+  couponCardShowExpiry: boolean;
+  couponCardShowMinPurchase: boolean;
+  couponCardShowUsageCount: boolean;
+  voucherCardShowLogo: boolean;
+  voucherCardShowBarcode: boolean;
+  voucherCardShowBalance: boolean;
+  voucherCardShowStatus: boolean;
+  loyaltyCardShowLogo: boolean;
+  loyaltyCardShowBarcode: boolean;
+  loyaltyCardShowBalance: boolean;
+  loyaltyCardShowPhone: boolean;
 }
 
 export interface BundleProduct { productId: number; productName: string; qty: number; }

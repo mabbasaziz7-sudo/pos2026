@@ -58,6 +58,24 @@ export default function Settings() {
   const [returnShowReason, setReturnShowReason] = useState(true);
   const [reportShowProfit, setReportShowProfit] = useState(true);
   const [reportShowTopProducts, setReportShowTopProducts] = useState(true);
+  // بطاقات العروض/الكوبونات/القسائم/الولاء
+  const [offerCardShowLogo, setOfferCardShowLogo] = useState(true);
+  const [offerCardShowTarget, setOfferCardShowTarget] = useState(true);
+  const [offerCardShowDates, setOfferCardShowDates] = useState(true);
+  const [offerCardShowStatus, setOfferCardShowStatus] = useState(true);
+  const [couponCardShowLogo, setCouponCardShowLogo] = useState(true);
+  const [couponCardShowBarcode, setCouponCardShowBarcode] = useState(true);
+  const [couponCardShowExpiry, setCouponCardShowExpiry] = useState(true);
+  const [couponCardShowMinPurchase, setCouponCardShowMinPurchase] = useState(true);
+  const [couponCardShowUsageCount, setCouponCardShowUsageCount] = useState(true);
+  const [voucherCardShowLogo, setVoucherCardShowLogo] = useState(true);
+  const [voucherCardShowBarcode, setVoucherCardShowBarcode] = useState(true);
+  const [voucherCardShowBalance, setVoucherCardShowBalance] = useState(true);
+  const [voucherCardShowStatus, setVoucherCardShowStatus] = useState(true);
+  const [loyaltyCardShowLogo, setLoyaltyCardShowLogo] = useState(true);
+  const [loyaltyCardShowBarcode, setLoyaltyCardShowBarcode] = useState(true);
+  const [loyaltyCardShowBalance, setLoyaltyCardShowBalance] = useState(true);
+  const [loyaltyCardShowPhone, setLoyaltyCardShowPhone] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -101,6 +119,23 @@ export default function Settings() {
         setReturnShowReason(current.returnShowReason !== false);
         setReportShowProfit(current.reportShowProfit !== false);
         setReportShowTopProducts(current.reportShowTopProducts !== false);
+        setOfferCardShowLogo(current.offerCardShowLogo !== false);
+        setOfferCardShowTarget(current.offerCardShowTarget !== false);
+        setOfferCardShowDates(current.offerCardShowDates !== false);
+        setOfferCardShowStatus(current.offerCardShowStatus !== false);
+        setCouponCardShowLogo(current.couponCardShowLogo !== false);
+        setCouponCardShowBarcode(current.couponCardShowBarcode !== false);
+        setCouponCardShowExpiry(current.couponCardShowExpiry !== false);
+        setCouponCardShowMinPurchase(current.couponCardShowMinPurchase !== false);
+        setCouponCardShowUsageCount(current.couponCardShowUsageCount !== false);
+        setVoucherCardShowLogo(current.voucherCardShowLogo !== false);
+        setVoucherCardShowBarcode(current.voucherCardShowBarcode !== false);
+        setVoucherCardShowBalance(current.voucherCardShowBalance !== false);
+        setVoucherCardShowStatus(current.voucherCardShowStatus !== false);
+        setLoyaltyCardShowLogo(current.loyaltyCardShowLogo !== false);
+        setLoyaltyCardShowBarcode(current.loyaltyCardShowBarcode !== false);
+        setLoyaltyCardShowBalance(current.loyaltyCardShowBalance !== false);
+        setLoyaltyCardShowPhone(current.loyaltyCardShowPhone !== false);
       }
       setLoading(false);
     })();
@@ -140,6 +175,10 @@ export default function Settings() {
       shiftShowLogo, shiftShowSalesList, shiftShowCashDetails,
       returnShowBarcode, returnShowOriginalInvoice, returnShowReason,
       reportShowProfit, reportShowTopProducts,
+      offerCardShowLogo, offerCardShowTarget, offerCardShowDates, offerCardShowStatus,
+      couponCardShowLogo, couponCardShowBarcode, couponCardShowExpiry, couponCardShowMinPurchase, couponCardShowUsageCount,
+      voucherCardShowLogo, voucherCardShowBarcode, voucherCardShowBalance, voucherCardShowStatus,
+      loyaltyCardShowLogo, loyaltyCardShowBarcode, loyaltyCardShowBalance, loyaltyCardShowPhone,
     };
     await db.settings.put(updated);
     setSettings(updated);
@@ -425,6 +464,43 @@ export default function Settings() {
             fields: [
               { label: 'عمود الربح التقديري', state: reportShowProfit, set: setReportShowProfit },
               { label: 'قسم أكثر المنتجات مبيعًا', state: reportShowTopProducts, set: setReportShowTopProducts },
+            ],
+          },
+          {
+            title: 'بطاقة العرض',
+            fields: [
+              { label: 'الشعار', state: offerCardShowLogo, set: setOfferCardShowLogo },
+              { label: 'الفئة / المنتجات المستهدفة', state: offerCardShowTarget, set: setOfferCardShowTarget },
+              { label: 'تواريخ البدء والانتهاء', state: offerCardShowDates, set: setOfferCardShowDates },
+              { label: 'حالة العرض (ساري/منتهي)', state: offerCardShowStatus, set: setOfferCardShowStatus },
+            ],
+          },
+          {
+            title: 'بطاقة الكوبون',
+            fields: [
+              { label: 'الشعار', state: couponCardShowLogo, set: setCouponCardShowLogo },
+              { label: 'الباركود', state: couponCardShowBarcode, set: setCouponCardShowBarcode },
+              { label: 'تاريخ الانتهاء', state: couponCardShowExpiry, set: setCouponCardShowExpiry },
+              { label: 'الحد الأدنى للشراء', state: couponCardShowMinPurchase, set: setCouponCardShowMinPurchase },
+              { label: 'عداد الاستخدامات', state: couponCardShowUsageCount, set: setCouponCardShowUsageCount },
+            ],
+          },
+          {
+            title: 'بطاقة القسيمة (هدية)',
+            fields: [
+              { label: 'الشعار', state: voucherCardShowLogo, set: setVoucherCardShowLogo },
+              { label: 'الباركود', state: voucherCardShowBarcode, set: setVoucherCardShowBarcode },
+              { label: 'تفاصيل الرصيد (أصلي/متبقي/مستخدم)', state: voucherCardShowBalance, set: setVoucherCardShowBalance },
+              { label: 'حالة القسيمة (نشطة/مستهلكة)', state: voucherCardShowStatus, set: setVoucherCardShowStatus },
+            ],
+          },
+          {
+            title: 'بطاقة الولاء',
+            fields: [
+              { label: 'الشعار', state: loyaltyCardShowLogo, set: setLoyaltyCardShowLogo },
+              { label: 'الباركود (رقم العضوية)', state: loyaltyCardShowBarcode, set: setLoyaltyCardShowBarcode },
+              { label: 'رصيد النقاط وقيمتها', state: loyaltyCardShowBalance, set: setLoyaltyCardShowBalance },
+              { label: 'رقم الهاتف على الظهر', state: loyaltyCardShowPhone, set: setLoyaltyCardShowPhone },
             ],
           },
         ].map((group) => (
