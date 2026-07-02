@@ -177,6 +177,25 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'scaleBarcodePrefix', type: 'text', default: "'2'" },
       { name: 'printAccentColor', type: 'text', default: "'#10b981'" },
       { name: 'printFontFamily', type: 'text', default: "'Tahoma, Arial, sans-serif'" },
+      // تخصيص حقول الفاتورة
+      { name: 'receiptShowLogo', type: 'boolean', default: 'true' },
+      { name: 'receiptShowCustomer', type: 'boolean', default: 'true' },
+      { name: 'receiptShowBarcode', type: 'boolean', default: 'true' },
+      { name: 'receiptShowPaymentMethod', type: 'boolean', default: 'true' },
+      { name: 'receiptShowTax', type: 'boolean', default: 'true' },
+      { name: 'receiptShowDiscounts', type: 'boolean', default: 'true' },
+      { name: 'receiptShowRemaining', type: 'boolean', default: 'true' },
+      // تخصيص ملخص الوردية
+      { name: 'shiftShowLogo', type: 'boolean', default: 'true' },
+      { name: 'shiftShowSalesList', type: 'boolean', default: 'true' },
+      { name: 'shiftShowCashDetails', type: 'boolean', default: 'true' },
+      // تخصيص إيصال المرتجع
+      { name: 'returnShowBarcode', type: 'boolean', default: 'true' },
+      { name: 'returnShowOriginalInvoice', type: 'boolean', default: 'true' },
+      { name: 'returnShowReason', type: 'boolean', default: 'true' },
+      // تخصيص تقرير المبيعات
+      { name: 'reportShowProfit', type: 'boolean', default: 'true' },
+      { name: 'reportShowTopProducts', type: 'boolean', default: 'true' },
     ],
   },
   offers: {

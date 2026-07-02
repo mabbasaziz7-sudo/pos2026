@@ -190,14 +190,16 @@ export default function Returns() {
       )
       .join('');
 
-    const barcodeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    JsBarcode(barcodeSvg, r.returnNumber, {
-      format: 'CODE128',
-      width: 1.5,
-      height: 50,
-      displayValue: true,
-      fontSize: 12,
-    });
+    const showBarcode = settings?.returnShowBarcode !== false;
+    const showOriginalInvoice = settings?.returnShowOriginalInvoice !== false;
+    const showReason = settings?.returnShowReason !== false;
+
+    let barcodeSvgHtml = '';
+    if (showBarcode) {
+      const barcodeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      JsBarcode(barcodeSvg, r.returnNumber, { format: 'CODE128', width: 1.5, height: 50, displayValue: true, fontSize: 12 });
+      barcodeSvgHtml = `<div class="receipt-center" style="margin-top:16px;">${barcodeSvg.outerHTML}</div>`;
+    }
 
     const body = `
       <div class="receipt-center">
@@ -206,11 +208,11 @@ export default function Returns() {
         <h3>فاتورة مرتجع</h3>
       </div>
       <p><strong>رقم المرتجع:</strong> ${r.returnNumber}</p>
-      <p><strong>الفاتورة الأصلية:</strong> ${r.originalInvoiceNumber}</p>
+      ${showOriginalInvoice ? `<p><strong>الفاتورة الأصلية:</strong> ${r.originalInvoiceNumber}</p>` : ''}
       <p><strong>العميل:</strong> ${r.customerName || 'نقدي'}</p>
       <p><strong>التاريخ:</strong> ${formatDate(r.date)}</p>
       <p><strong>الكاشير:</strong> ${r.userName}</p>
-      ${r.reason ? `<p><strong>السبب:</strong> ${r.reason}</p>` : ''}
+      ${showReason && r.reason ? `<p><strong>السبب:</strong> ${r.reason}</p>` : ''}
       <table>
         <thead><tr><th>المنتج</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -219,7 +221,7 @@ export default function Returns() {
         <div><p class="label">طريقة الاسترداد</p><p class="value">${r.refundMethod === 'cash' ? 'نقدي' : `رصيد (${r.voucherCode})`}</p></div>
         <div><p class="label">مبلغ الاسترداد</p><p class="value">${formatCurrency(r.refundAmount)}</p></div>
       </div>
-      <div class="receipt-center" style="margin-top:16px;">${barcodeSvg.outerHTML}</div>
+      ${barcodeSvgHtml}
     `;
     openPrintWindow(`فاتورة مرتجع - ${r.returnNumber}`, body, '500px', settings);
   };

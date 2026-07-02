@@ -123,6 +123,9 @@ export default function Reports() {
     return 'كل الفترات';
   };
 
+  const showProfit = settings?.reportShowProfit !== false;
+  const showTopProducts = settings?.reportShowTopProducts !== false;
+
   const printReport = () => {
     const storeName = settings?.storeName || 'نظام الكاشير';
     const logo = settings?.storeLogo ? `<img src="${settings.storeLogo}" style="height:48px; object-fit:contain; display:block; margin-bottom:4px;">` : '';
@@ -182,15 +185,15 @@ export default function Reports() {
         <!-- ملخص إحصائي -->
         <table style="width:100%; border-collapse:collapse; margin-top:12px; margin-bottom:16px;">
           <tr style="background:${accent}; color:white;">
-            <td style="padding:6px 10px; font-size:11px; font-weight:bold; width:25%; text-align:center;">عدد الفواتير</td>
-            <td style="padding:6px 10px; font-size:11px; font-weight:bold; width:25%; text-align:center;">إجمالي المبيعات</td>
-            <td style="padding:6px 10px; font-size:11px; font-weight:bold; width:25%; text-align:center;">الربح التقديري</td>
-            <td style="padding:6px 10px; font-size:11px; font-weight:bold; width:25%; text-align:center;">غير محصّل</td>
+            <td style="padding:6px 10px; font-size:11px; font-weight:bold; text-align:center;">عدد الفواتير</td>
+            <td style="padding:6px 10px; font-size:11px; font-weight:bold; text-align:center;">إجمالي المبيعات</td>
+            ${showProfit ? `<td style="padding:6px 10px; font-size:11px; font-weight:bold; text-align:center;">الربح التقديري</td>` : ''}
+            <td style="padding:6px 10px; font-size:11px; font-weight:bold; text-align:center;">غير محصّل</td>
           </tr>
           <tr style="background:#eaf0fb;">
             <td style="padding:8px 10px; font-size:14px; font-weight:bold; text-align:center;">${filteredSales.length}</td>
             <td style="padding:8px 10px; font-size:14px; font-weight:bold; text-align:center; color:${accent};">${totalSales.toFixed(3)}</td>
-            <td style="padding:8px 10px; font-size:14px; font-weight:bold; text-align:center; color:#27ae60;">${totalProfit.toFixed(3)}</td>
+            ${showProfit ? `<td style="padding:8px 10px; font-size:14px; font-weight:bold; text-align:center; color:#27ae60;">${totalProfit.toFixed(3)}</td>` : ''}
             <td style="padding:8px 10px; font-size:14px; font-weight:bold; text-align:center; color:#c0392b;">${totalRemaining.toFixed(3)}</td>
           </tr>
         </table>
@@ -226,7 +229,7 @@ export default function Reports() {
         </table>
 
         <!-- أكثر المنتجات مبيعًا -->
-        ${topProducts.length > 0 ? `
+        ${showTopProducts && topProducts.length > 0 ? `
         <div style="font-size:13px; font-weight:bold; color:${accent}; border-bottom:2px solid ${accent}; padding-bottom:3px; margin-bottom:0;">
           أكثر المنتجات مبيعًا
         </div>
@@ -369,7 +372,7 @@ export default function Reports() {
           {[
             { label: 'عدد الفواتير', value: formatNumber(filteredSales.length), icon: ShoppingCart, color: '#4f46e5' },
             { label: 'إجمالي المبيعات', value: formatCurrency(totalSales), icon: DollarSign, color: accent },
-            { label: 'الربح التقديري', value: formatCurrency(totalProfit), icon: TrendingUp, color: '#059669' },
+            ...(showProfit ? [{ label: 'الربح التقديري', value: formatCurrency(totalProfit), icon: TrendingUp, color: '#059669' }] : []),
             { label: 'غير محصّل', value: formatCurrency(totalRemaining), icon: TrendingDown, color: '#dc2626' },
           ].map((s, i) => (
             <div key={s.label} className={`flex items-center gap-3 px-5 py-4 ${i < 3 ? 'border-l' : ''}`}
@@ -445,7 +448,7 @@ export default function Reports() {
         </div>
 
         {/* أكثر المنتجات مبيعًا */}
-        {topProducts.length > 0 && (
+        {showTopProducts && topProducts.length > 0 && (
           <div className="border-t" style={{ borderColor: `${accent}30` }}>
             <div className="px-5 py-2.5 text-xs font-bold border-b flex items-center gap-2"
               style={{ borderColor: `${accent}20`, background: `${accent}08`, color: accent }}>

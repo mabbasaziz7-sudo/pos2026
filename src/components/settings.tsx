@@ -42,6 +42,22 @@ export default function Settings() {
   const [scaleBarcodePrefix, setScaleBarcodePrefix] = useState('2');
   const [printAccentColor, setPrintAccentColor] = useState('#10b981');
   const [printFontFamily, setPrintFontFamily] = useState('Tahoma, Arial, sans-serif');
+  // تخصيص حقول المطبوعات
+  const [receiptShowLogo, setReceiptShowLogo] = useState(true);
+  const [receiptShowCustomer, setReceiptShowCustomer] = useState(true);
+  const [receiptShowBarcode, setReceiptShowBarcode] = useState(true);
+  const [receiptShowPaymentMethod, setReceiptShowPaymentMethod] = useState(true);
+  const [receiptShowTax, setReceiptShowTax] = useState(true);
+  const [receiptShowDiscounts, setReceiptShowDiscounts] = useState(true);
+  const [receiptShowRemaining, setReceiptShowRemaining] = useState(true);
+  const [shiftShowLogo, setShiftShowLogo] = useState(true);
+  const [shiftShowSalesList, setShiftShowSalesList] = useState(true);
+  const [shiftShowCashDetails, setShiftShowCashDetails] = useState(true);
+  const [returnShowBarcode, setReturnShowBarcode] = useState(true);
+  const [returnShowOriginalInvoice, setReturnShowOriginalInvoice] = useState(true);
+  const [returnShowReason, setReturnShowReason] = useState(true);
+  const [reportShowProfit, setReportShowProfit] = useState(true);
+  const [reportShowTopProducts, setReportShowTopProducts] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,6 +86,21 @@ export default function Settings() {
         setScaleBarcodePrefix(current.scaleBarcodePrefix ?? '2');
         setPrintAccentColor(current.printAccentColor ?? '#10b981');
         setPrintFontFamily(current.printFontFamily ?? 'Tahoma, Arial, sans-serif');
+        setReceiptShowLogo(current.receiptShowLogo !== false);
+        setReceiptShowCustomer(current.receiptShowCustomer !== false);
+        setReceiptShowBarcode(current.receiptShowBarcode !== false);
+        setReceiptShowPaymentMethod(current.receiptShowPaymentMethod !== false);
+        setReceiptShowTax(current.receiptShowTax !== false);
+        setReceiptShowDiscounts(current.receiptShowDiscounts !== false);
+        setReceiptShowRemaining(current.receiptShowRemaining !== false);
+        setShiftShowLogo(current.shiftShowLogo !== false);
+        setShiftShowSalesList(current.shiftShowSalesList !== false);
+        setShiftShowCashDetails(current.shiftShowCashDetails !== false);
+        setReturnShowBarcode(current.returnShowBarcode !== false);
+        setReturnShowOriginalInvoice(current.returnShowOriginalInvoice !== false);
+        setReturnShowReason(current.returnShowReason !== false);
+        setReportShowProfit(current.reportShowProfit !== false);
+        setReportShowTopProducts(current.reportShowTopProducts !== false);
       }
       setLoading(false);
     })();
@@ -104,6 +135,11 @@ export default function Settings() {
       scaleBarcodePrefix: scaleBarcodePrefix.trim() || '2',
       printAccentColor,
       printFontFamily,
+      receiptShowLogo, receiptShowCustomer, receiptShowBarcode, receiptShowPaymentMethod,
+      receiptShowTax, receiptShowDiscounts, receiptShowRemaining,
+      shiftShowLogo, shiftShowSalesList, shiftShowCashDetails,
+      returnShowBarcode, returnShowOriginalInvoice, returnShowReason,
+      reportShowProfit, reportShowTopProducts,
     };
     await db.settings.put(updated);
     setSettings(updated);
@@ -346,6 +382,75 @@ export default function Settings() {
             </select>
           </div>
         </div>
+      </div>
+
+      {/* ===== تحكم بحقول المطبوعات ===== */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Receipt className="w-5 h-5 text-emerald-500" />
+          <h3 className="font-semibold text-slate-700">تحكم بحقول كل مطبوعة</h3>
+        </div>
+
+        {[
+          {
+            title: 'فاتورة البيع',
+            fields: [
+              { label: 'الشعار', state: receiptShowLogo, set: setReceiptShowLogo },
+              { label: 'اسم العميل', state: receiptShowCustomer, set: setReceiptShowCustomer },
+              { label: 'باركود الفاتورة', state: receiptShowBarcode, set: setReceiptShowBarcode },
+              { label: 'طريقة الدفع', state: receiptShowPaymentMethod, set: setReceiptShowPaymentMethod },
+              { label: 'الضريبة', state: receiptShowTax, set: setReceiptShowTax },
+              { label: 'تفاصيل الخصومات (كوبون/قسيمة/نقاط)', state: receiptShowDiscounts, set: setReceiptShowDiscounts },
+              { label: 'المبلغ المتبقي (آجل)', state: receiptShowRemaining, set: setReceiptShowRemaining },
+            ],
+          },
+          {
+            title: 'ملخص إغلاق الوردية',
+            fields: [
+              { label: 'الشعار', state: shiftShowLogo, set: setShiftShowLogo },
+              { label: 'قائمة فواتير الوردية', state: shiftShowSalesList, set: setShiftShowSalesList },
+              { label: 'تفاصيل النقدية (متوقع / فعلي / فرق)', state: shiftShowCashDetails, set: setShiftShowCashDetails },
+            ],
+          },
+          {
+            title: 'إيصال المرتجع',
+            fields: [
+              { label: 'باركود رقم المرتجع', state: returnShowBarcode, set: setReturnShowBarcode },
+              { label: 'رقم الفاتورة الأصلية', state: returnShowOriginalInvoice, set: setReturnShowOriginalInvoice },
+              { label: 'سبب الإرجاع', state: returnShowReason, set: setReturnShowReason },
+            ],
+          },
+          {
+            title: 'تقرير المبيعات',
+            fields: [
+              { label: 'عمود الربح التقديري', state: reportShowProfit, set: setReportShowProfit },
+              { label: 'قسم أكثر المنتجات مبيعًا', state: reportShowTopProducts, set: setReportShowTopProducts },
+            ],
+          },
+        ].map((group) => (
+          <div key={group.title} className="mb-5">
+            <p className="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2 mb-3">{group.title}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {group.fields.map((field) => (
+                <button
+                  key={field.label}
+                  type="button"
+                  onClick={() => field.set(!field.state)}
+                  className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-sm transition-colors ${
+                    field.state ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md border flex items-center justify-center flex-shrink-0 ${
+                    field.state ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'
+                  }`}>
+                    {field.state && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  {field.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
