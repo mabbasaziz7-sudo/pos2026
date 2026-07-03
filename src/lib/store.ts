@@ -18,7 +18,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   currentUser: null,
   currentShift: null,
-  activeTab: 'pos',
+  activeTab: 'dashboard',
   settings: null,
   pendingReturnInvoice: null,
   setCurrentUser: (user) => set({ currentUser: user }),

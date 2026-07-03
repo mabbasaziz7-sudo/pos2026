@@ -22,6 +22,8 @@ import Reports from '@/components/reports';
 import Users from '@/components/users';
 import Backup from '@/components/backup';
 import Settings from '@/components/settings';
+import Dashboard from '@/components/dashboard';
+import Themes from '@/components/themes';
 
 export default function HomePage() {
   const { currentUser, activeTab, setCurrentUser, setSettings } = useAppStore();
@@ -59,6 +61,7 @@ export default function HomePage() {
   return (
     <AppLayout>
       <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
+      {(activeTab === 'dashboard' || !activeTab) && <Dashboard />}
       {activeTab === 'pos' && <POS />}
       {activeTab === 'sales' && <Sales />}
       {activeTab === 'returns' && <Returns />}
@@ -74,6 +77,7 @@ export default function HomePage() {
       {activeTab === 'reports' && <Reports />}
       {activeTab === 'users' && <Users />}
       {activeTab === 'backup' && <Backup />}
+      {activeTab === 'themes' && <Themes />}
       {activeTab === 'settings' && <Settings />}
     </AppLayout>
   );

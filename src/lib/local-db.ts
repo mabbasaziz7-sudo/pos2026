@@ -169,6 +169,8 @@ export interface Settings {
   scaleBarcodePrefix: string;
   printAccentColor: string;
   printFontFamily: string;
+  sidebarBg: string;
+  themeId: string;
   // ===== تخصيص حقول المطبوعات =====
   // الفاتورة
   receiptShowLogo: boolean;

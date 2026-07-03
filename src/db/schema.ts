@@ -177,6 +177,8 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'scaleBarcodePrefix', type: 'text', default: "'2'" },
       { name: 'printAccentColor', type: 'text', default: "'#10b981'" },
       { name: 'printFontFamily', type: 'text', default: "'Tahoma, Arial, sans-serif'" },
+      { name: 'sidebarBg', type: 'text', default: "'#0f172a'" },
+      { name: 'themeId', type: 'text', default: "'emerald'" },
       // تخصيص حقول الفاتورة
       { name: 'receiptShowLogo', type: 'boolean', default: 'true' },
       { name: 'receiptShowCustomer', type: 'boolean', default: 'true' },

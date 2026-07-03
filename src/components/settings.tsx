@@ -42,6 +42,8 @@ export default function Settings() {
   const [scaleBarcodePrefix, setScaleBarcodePrefix] = useState('2');
   const [printAccentColor, setPrintAccentColor] = useState('#10b981');
   const [printFontFamily, setPrintFontFamily] = useState('Tahoma, Arial, sans-serif');
+  const [sidebarBg, setSidebarBg] = useState('#0f172a');
+  const [themeId, setThemeId] = useState('emerald');
   // تخصيص حقول المطبوعات
   const [receiptShowLogo, setReceiptShowLogo] = useState(true);
   const [receiptShowCustomer, setReceiptShowCustomer] = useState(true);
@@ -104,6 +106,8 @@ export default function Settings() {
         setScaleBarcodePrefix(current.scaleBarcodePrefix ?? '2');
         setPrintAccentColor(current.printAccentColor ?? '#10b981');
         setPrintFontFamily(current.printFontFamily ?? 'Tahoma, Arial, sans-serif');
+        setSidebarBg(current.sidebarBg ?? '#0f172a');
+        setThemeId(current.themeId ?? 'emerald');
         setReceiptShowLogo(current.receiptShowLogo !== false);
         setReceiptShowCustomer(current.receiptShowCustomer !== false);
         setReceiptShowBarcode(current.receiptShowBarcode !== false);
@@ -170,6 +174,8 @@ export default function Settings() {
       scaleBarcodePrefix: scaleBarcodePrefix.trim() || '2',
       printAccentColor,
       printFontFamily,
+      sidebarBg,
+      themeId,
       receiptShowLogo, receiptShowCustomer, receiptShowBarcode, receiptShowPaymentMethod,
       receiptShowTax, receiptShowDiscounts, receiptShowRemaining,
       shiftShowLogo, shiftShowSalesList, shiftShowCashDetails,
