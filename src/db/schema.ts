@@ -356,6 +356,57 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'createdAt', type: 'timestamp' },
     ],
   },
+
+  employees: {
+    columns: [
+      id(),
+      { name: 'name', type: 'text' },
+      { name: 'phone', type: 'text', default: "''" },
+      { name: 'email', type: 'text', nullable: true },
+      { name: 'position', type: 'text', default: "''" },
+      { name: 'department', type: 'text', default: "''" },
+      { name: 'salary', type: 'numeric', default: '0' },
+      { name: 'hireDate', type: 'timestamp' },
+      { name: 'isActive', type: 'boolean', default: 'true' },
+      { name: 'notes', type: 'text', nullable: true },
+      { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
+
+  orders: {
+    columns: [
+      id(),
+      { name: 'orderNumber', type: 'text' },
+      { name: 'customerId', type: 'integer', nullable: true },
+      { name: 'customerName', type: 'text', nullable: true },
+      { name: 'customerPhone', type: 'text', nullable: true },
+      { name: 'items', type: 'jsonb', default: "'[]'" },
+      { name: 'subtotal', type: 'numeric', default: '0' },
+      { name: 'tax', type: 'numeric', default: '0' },
+      { name: 'total', type: 'numeric', default: '0' },
+      { name: 'status', type: 'text', default: "'pending'" },
+      { name: 'orderType', type: 'text', default: "'takeaway'" },
+      { name: 'deliveryAddress', type: 'text', nullable: true },
+      { name: 'notes', type: 'text', nullable: true },
+      { name: 'date', type: 'timestamp' },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+    ],
+  },
+
+  loyaltyTiers: {
+    columns: [
+      id(),
+      { name: 'name', type: 'text' },
+      { name: 'minPoints', type: 'integer', default: '0' },
+      { name: 'maxPoints', type: 'integer', default: '0' },
+      { name: 'discountPercent', type: 'numeric', default: '0' },
+      { name: 'color', type: 'text', default: "'#10b981'" },
+      { name: 'benefits', type: 'text', default: "''" },
+      { name: 'isActive', type: 'boolean', default: 'true' },
+      { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
 };
 
 export const TABLE_NAMES = Object.keys(SCHEMA);

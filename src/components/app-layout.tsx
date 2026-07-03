@@ -6,6 +6,7 @@ import {
   BarChart3, Shield, Download, LogOut, Menu, X, Store,
   ChevronLeft, Settings, Receipt, ClipboardList, Tag, Gift,
   MessageCircle, RotateCcw, LayoutDashboard, Palette, Wifi, WifiOff,
+  Users2, ClipboardCheck, ArrowLeftRight, Star,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -24,6 +25,11 @@ const menuItems = [
   { id: 'promotions', label: 'العروض والكوبونات', icon: Tag,             color: 'text-pink-400' },
   { id: 'vouchers',   label: 'القسائم',           icon: Gift,            color: 'text-fuchsia-400' },
   { id: 'campaigns',  label: 'واتساب',            icon: MessageCircle,   color: 'text-green-400' },
+  { id: 'deliveries', label: 'التوصيل',           icon: Truck,           color: 'text-sky-400' },
+  { id: 'orders',     label: 'الطلبات',           icon: ClipboardCheck,  color: 'text-violet-300' },
+  { id: 'employees',  label: 'الموظفون',          icon: Users2,          color: 'text-blue-300' },
+  { id: 'transactions',label: 'المعاملات المالية', icon: ArrowLeftRight, color: 'text-yellow-300' },
+  { id: 'loyalty',    label: 'الولاء والمكافآت', icon: Star,            color: 'text-amber-400' },
   { id: 'reports',    label: 'التقارير',          icon: BarChart3,       color: 'text-orange-400' },
   { id: 'users',      label: 'المستخدمين',        icon: Shield,          color: 'text-indigo-400' },
   { id: 'backup',     label: 'نسخ احتياطي',      icon: Download,        color: 'text-teal-400' },

@@ -364,6 +364,61 @@ export interface PriceTier {
   createdAt: Date;
 }
 
+// ===== الموظفون =====
+export interface Employee {
+  id?: number;
+  name: string;
+  phone: string;
+  email?: string;
+  position: string;
+  department: string;
+  salary: number;
+  hireDate: Date;
+  isActive: boolean;
+  notes?: string;
+  createdAt: Date;
+}
+
+// ===== الطلبات =====
+export interface OrderItem {
+  productId: number;
+  productName: string;
+  quantity: number;
+  price: number;
+  total: number;
+}
+export interface Order {
+  id?: number;
+  orderNumber: string;
+  customerId?: number;
+  customerName?: string;
+  customerPhone?: string;
+  items: OrderItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
+  orderType: 'dine-in' | 'takeaway' | 'delivery';
+  deliveryAddress?: string;
+  notes?: string;
+  date: Date;
+  userId: number;
+  userName: string;
+}
+
+// ===== مستويات الولاء =====
+export interface LoyaltyTier {
+  id?: number;
+  name: string;
+  minPoints: number;
+  maxPoints: number;
+  discountPercent: number;
+  color: string;
+  benefits: string;
+  isActive: boolean;
+  createdAt: Date;
+}
+
 // ===== طبقة توافق مع واجهة Dexie القديمة، مدعومة بـ API حقيقي + قاعدة بيانات مشتركة =====
 // كل الشاشات في النظام تستورد `db` من هذا الملف وتستخدم نفس الاستدعاءات التي كانت تُستخدم
 // مع IndexedDB (toArray, add, update, where().equals()...) — لذا أبقينا الواجهة كما هي
@@ -560,6 +615,9 @@ class ApiDatabase {
   parkedSales = new ApiTable<ParkedSale>('parkedSales');
   deliveries = new ApiTable<Delivery>('deliveries');
   priceTiers = new ApiTable<PriceTier>('priceTiers');
+  employees = new ApiTable<Employee>('employees');
+  orders = new ApiTable<Order>('orders');
+  loyaltyTiers = new ApiTable<LoyaltyTier>('loyaltyTiers');
   customerGroups = new ApiTable<CustomerGroup>('customerGroups');
   whatsappLogs = new ApiTable<WhatsAppLog>('whatsappLogs');
 }

@@ -24,6 +24,11 @@ import Backup from '@/components/backup';
 import Settings from '@/components/settings';
 import Dashboard from '@/components/dashboard';
 import Themes from '@/components/themes';
+import Deliveries from '@/components/deliveries';
+import Employees from '@/components/employees';
+import Orders from '@/components/orders';
+import Transactions from '@/components/transactions';
+import LoyaltyPrograms from '@/components/loyalty-programs';
 
 export default function HomePage() {
   const { currentUser, activeTab, setCurrentUser, setSettings } = useAppStore();
@@ -74,6 +79,11 @@ export default function HomePage() {
       {activeTab === 'promotions' && <Promotions />}
       {activeTab === 'vouchers' && <Vouchers />}
       {activeTab === 'campaigns' && <Campaigns />}
+      {activeTab === 'deliveries' && <Deliveries />}
+      {activeTab === 'employees' && <Employees />}
+      {activeTab === 'orders' && <Orders />}
+      {activeTab === 'transactions' && <Transactions />}
+      {activeTab === 'loyalty' && <LoyaltyPrograms />}
       {activeTab === 'reports' && <Reports />}
       {activeTab === 'users' && <Users />}
       {activeTab === 'backup' && <Backup />}
