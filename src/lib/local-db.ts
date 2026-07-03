@@ -165,6 +165,10 @@ export interface Settings {
   displayAccentColor: string;
   loyaltyPointValue: number;
   whatsappCountryCode: string;
+  // WhatsApp Business API الرسمي من Meta
+  whatsappApiEnabled: boolean;
+  whatsappApiToken: string;
+  whatsappPhoneNumberId: string;
   enableScaleBarcodes: boolean;
   scaleBarcodePrefix: string;
   printAccentColor: string;

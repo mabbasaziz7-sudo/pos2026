@@ -38,6 +38,11 @@ export default function Settings() {
   const [displayAccentColor, setDisplayAccentColor] = useState('#10b981');
   const [loyaltyPointValue, setLoyaltyPointValue] = useState('0.1');
   const [whatsappCountryCode, setWhatsappCountryCode] = useState('966');
+  const [whatsappApiEnabled, setWhatsappApiEnabled] = useState(false);
+  const [whatsappApiToken, setWhatsappApiToken] = useState('');
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState('');
+  const [apiTestLoading, setApiTestLoading] = useState(false);
+  const [apiTestResult, setApiTestResult] = useState<{connected?:boolean;phoneNumber?:string;name?:string;error?:string}|null>(null);
   const [enableScaleBarcodes, setEnableScaleBarcodes] = useState(false);
   const [scaleBarcodePrefix, setScaleBarcodePrefix] = useState('2');
   const [printAccentColor, setPrintAccentColor] = useState('#10b981');
@@ -102,6 +107,9 @@ export default function Settings() {
         setDisplayAccentColor(current.displayAccentColor ?? '#10b981');
         setLoyaltyPointValue(String(current.loyaltyPointValue ?? 0.1));
         setWhatsappCountryCode(current.whatsappCountryCode ?? '966');
+        setWhatsappApiEnabled(current.whatsappApiEnabled ?? false);
+        setWhatsappApiToken(current.whatsappApiToken ?? '');
+        setWhatsappPhoneNumberId(current.whatsappPhoneNumberId ?? '');
         setEnableScaleBarcodes(current.enableScaleBarcodes ?? false);
         setScaleBarcodePrefix(current.scaleBarcodePrefix ?? '2');
         setPrintAccentColor(current.printAccentColor ?? '#10b981');
@@ -170,6 +178,9 @@ export default function Settings() {
       displayAccentColor,
       loyaltyPointValue: parseFloat(loyaltyPointValue) || 0,
       whatsappCountryCode: whatsappCountryCode.trim() || '966',
+      whatsappApiEnabled,
+      whatsappApiToken: whatsappApiToken.trim(),
+      whatsappPhoneNumberId: whatsappPhoneNumberId.trim(),
       enableScaleBarcodes,
       scaleBarcodePrefix: scaleBarcodePrefix.trim() || '2',
       printAccentColor,
@@ -648,6 +659,68 @@ export default function Settings() {
           <p className="text-xs text-slate-500 mt-1">
             يُستخدم لتحويل أرقام العملاء المحلية (مثل 05xxxxxxxx) إلى الصيغة الدولية المطلوبة لإرسال رسائل واتساب.
           </p>
+        </div>
+
+        {/* WhatsApp Business API Section */}
+        <div className="mt-6 border-t border-slate-100 pt-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-700">WhatsApp Business API (Meta)</p>
+              <p className="text-xs text-slate-400 mt-0.5">إرسال مباشر بدون فتح واتساب</p>
+            </div>
+            <button type="button" onClick={() => setWhatsappApiEnabled(!whatsappApiEnabled)}
+              className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${whatsappApiEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${whatsappApiEnabled ? 'left-6' : 'left-0.5'}`} />
+            </button>
+          </div>
+
+          {whatsappApiEnabled && (
+            <div className="space-y-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+                <p className="font-semibold">كيف تحصل على بيانات الاعتماد؟</p>
+                <p>1. اذهب إلى <strong>developers.facebook.com</strong> → أنشئ تطبيق → WhatsApp</p>
+                <p>2. من <strong>WhatsApp → API Setup</strong> احصل على: Phone Number ID + Access Token</p>
+                <p>3. أضف رقم هاتفك من <strong>Manage Phone Numbers</strong></p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Phone Number ID</label>
+                <input type="text" value={whatsappPhoneNumberId} onChange={e => setWhatsappPhoneNumberId(e.target.value)}
+                  placeholder="123456789012345"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Access Token</label>
+                <input type="password" value={whatsappApiToken} onChange={e => setWhatsappApiToken(e.target.value)}
+                  placeholder="EAAx..."
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm" />
+              </div>
+
+              <div className="flex gap-3 items-center">
+                <button type="button" disabled={apiTestLoading || !whatsappApiToken || !whatsappPhoneNumberId}
+                  onClick={async () => {
+                    setApiTestLoading(true); setApiTestResult(null);
+                    try { const r = await fetch('/api/whatsapp/send'); setApiTestResult(await r.json()); }
+                    catch { setApiTestResult({ error: 'فشل الاتصال' }); }
+                    finally { setApiTestLoading(false); }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white text-sm rounded-lg transition-colors">
+                  <MessageCircle className="w-4 h-4" />
+                  {apiTestLoading ? 'جاري الاختبار...' : 'اختبار الاتصال'}
+                </button>
+                {apiTestResult && (
+                  <div className={`text-xs px-3 py-2 rounded-lg ${apiTestResult.connected ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                    {apiTestResult.connected
+                      ? `✅ متصل — ${apiTestResult.name} (${apiTestResult.phoneNumber})`
+                      : `❌ ${apiTestResult.error}`}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                ⚠️ اضغط <strong>حفظ الإعدادات</strong> أولًا قبل اختبار الاتصال حتى تُحفظ البيانات في قاعدة البيانات.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
