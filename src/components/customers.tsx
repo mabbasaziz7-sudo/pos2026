@@ -43,7 +43,7 @@ export default function Customers() {
     creditLimit: '',
   });
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer' | 'wallet'>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletTopupAmount, setWalletTopupAmount] = useState('');
@@ -197,26 +197,53 @@ export default function Customers() {
       return;
     }
 
-    await db.payments.add({
-      customerId: selectedCustomer.id,
-      amount,
-      type: 'collection',
-      method: paymentMethod,
-      date: new Date(),
-      notes: paymentNotes,
-      saleId: 0,
-    });
+    if (paymentMethod === 'wallet') {
+      const walletBal = selectedCustomer.walletBalance ?? 0;
+      if (walletBal < amount) {
+        toast.error(`رصيد المحفظة غير كافٍ — المتاح: ${formatCurrency(walletBal)}`);
+        return;
+      }
+      const walletAfter = walletBal - amount;
+      await db.customers.update(selectedCustomer.id!, {
+        balance: Math.max(0, selectedCustomer.balance - amount),
+        walletBalance: walletAfter,
+      });
+      await db.walletTransactions.add({
+        customerId: selectedCustomer.id!,
+        customerName: selectedCustomer.name,
+        type: 'purchase',
+        amount,
+        balanceBefore: walletBal,
+        balanceAfter: walletAfter,
+        note: `سداد آجل${paymentNotes ? ` — ${paymentNotes}` : ''}`,
+        date: new Date(),
+        userId: currentUser?.id ?? 0,
+        userName: currentUser?.username ?? '',
+      });
+      toast.success(`تم سداد ${formatCurrency(amount)} من المحفظة`);
+    } else {
+      await db.payments.add({
+        customerId: selectedCustomer.id,
+        amount,
+        type: 'collection',
+        method: paymentMethod as 'cash' | 'transfer',
+        date: new Date(),
+        notes: paymentNotes,
+        saleId: 0,
+      });
+      await db.customers.update(selectedCustomer.id!, {
+        balance: Math.max(0, selectedCustomer.balance - amount),
+      });
+      toast.success('تم تسجيل التحصيل');
+    }
 
-    await db.customers.update(selectedCustomer.id!, {
-      balance: Math.max(0, selectedCustomer.balance - amount),
-    });
-
-    toast.success('تم تسجيل التحصيل');
+    const newBalance = Math.max(0, selectedCustomer.balance - amount);
+    const newWallet = paymentMethod === 'wallet' ? Math.max(0, (selectedCustomer.walletBalance ?? 0) - amount) : (selectedCustomer.walletBalance ?? 0);
     setShowPaymentModal(false);
     setPaymentAmount('');
     setPaymentNotes('');
     loadCustomers();
-    viewDetails({ ...selectedCustomer, balance: Math.max(0, selectedCustomer.balance - amount) });
+    viewDetails({ ...selectedCustomer, balance: newBalance, walletBalance: newWallet });
   };
 
   const openWalletTopup = async (customer: Customer) => {
@@ -607,10 +634,11 @@ export default function Customers() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
             <h3 className="text-lg font-bold text-slate-800 mb-1">تسجيل تحصيل</h3>
-            <p className="text-sm text-slate-500 mb-4">{selectedCustomer.name}</p>
-            <p className="text-sm mb-4">
-              الرصيد الحالي: <span className="font-bold text-rose-600">{formatCurrency(selectedCustomer.balance)}</span>
-            </p>
+            <p className="text-sm text-slate-500 mb-2">{selectedCustomer.name}</p>
+            <div className="flex gap-4 text-sm mb-4">
+              <span>الآجل: <span className="font-bold text-rose-600">{formatCurrency(selectedCustomer.balance)}</span></span>
+              <span>المحفظة: <span className="font-bold text-emerald-600">{formatCurrency(selectedCustomer.walletBalance ?? 0)}</span></span>
+            </div>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">المبلغ</label>
@@ -626,24 +654,29 @@ export default function Customers() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">طريقة الدفع</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setPaymentMethod('cash')}
-                    className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      paymentMethod === 'cash' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    نقدي
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('transfer')}
-                    className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      paymentMethod === 'transfer' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    تحويل
-                  </button>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['cash', 'transfer', 'wallet'] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setPaymentMethod(m)}
+                      disabled={m === 'wallet' && (selectedCustomer.walletBalance ?? 0) <= 0}
+                      className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        paymentMethod === m
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : m === 'wallet' && (selectedCustomer.walletBalance ?? 0) <= 0
+                          ? 'border-slate-100 text-slate-300 cursor-not-allowed'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {m === 'cash' ? '💵 نقدي' : m === 'transfer' ? '🏦 تحويل' : '👛 محفظة'}
+                    </button>
+                  ))}
                 </div>
+                {paymentMethod === 'wallet' && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    رصيد المحفظة المتاح: {formatCurrency(selectedCustomer.walletBalance ?? 0)}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">ملاحظات</label>

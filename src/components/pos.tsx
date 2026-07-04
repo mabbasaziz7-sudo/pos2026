@@ -63,6 +63,7 @@ export default function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'cash' | 'credit' | 'mixed' | 'wallet'>('cash');
   const [paidAmount, setPaidAmount] = useState('');
+  const [addChangeToWallet, setAddChangeToWallet] = useState(true);
   const [saleNotes, setSaleNotes] = useState('');
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [startingCash, setStartingCash] = useState('');
@@ -667,6 +668,30 @@ export default function POS() {
           userId: currentUser.id!,
           userName: currentUser.name,
         });
+      }
+
+      // زيادة الدفع النقدي → محفظة العميل تلقائياً
+      if (selectedCustomer && paymentType === 'cash' && addChangeToWallet) {
+        const change = cashPaid - finalDue;
+        if (change > 0) {
+          const walletBefore = selectedCustomer.walletBalance ?? 0;
+          const walletAfter = walletBefore + change;
+          await db.customers.update(selectedCustomer.id!, { walletBalance: walletAfter });
+          await db.walletTransactions.add({
+            customerId: selectedCustomer.id!,
+            customerName: selectedCustomer.name,
+            type: 'topup',
+            amount: change,
+            balanceBefore: walletBefore,
+            balanceAfter: walletAfter,
+            note: `زيادة فاتورة ${sale.invoiceNumber}`,
+            saleId: saleId,
+            date: new Date(),
+            userId: currentUser.id!,
+            userName: currentUser.name,
+          });
+          toast.success(`تم إضافة ${formatCurrency(change)} إلى محفظة ${selectedCustomer.name}`);
+        }
       }
 
       // Update customer loyalty points (redeem + earn)
@@ -1322,9 +1347,28 @@ export default function POS() {
                     step="0.01"
                   />
                   {parseFloat(paidAmount) > finalDue && (
-                    <p className="text-sm text-amber-600 mt-1">
-                      الباقي: {formatCurrency(parseFloat(paidAmount) - finalDue)}
-                    </p>
+                    <div className="mt-2 space-y-1">
+                      {selectedCustomer ? (
+                        <>
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={addChangeToWallet}
+                              onChange={(e) => setAddChangeToWallet(e.target.checked)}
+                              className="w-4 h-4 accent-emerald-500"
+                            />
+                            <span className="text-sm text-emerald-700 font-medium">
+                              إضافة الزيادة ({formatCurrency(parseFloat(paidAmount) - finalDue)}) إلى محفظة {selectedCustomer.name}
+                            </span>
+                          </label>
+                          {!addChangeToWallet && (
+                            <p className="text-sm text-amber-600 mr-6">الباقي نقداً: {formatCurrency(parseFloat(paidAmount) - finalDue)}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm text-amber-600">الباقي: {formatCurrency(parseFloat(paidAmount) - finalDue)}</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
