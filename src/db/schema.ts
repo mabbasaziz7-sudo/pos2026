@@ -157,6 +157,7 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'id', type: 'fixedId' },
       { name: 'storeName', type: 'text', default: "'نظام الكاشير'" },
       { name: 'storeLogo', type: 'text', default: "''" },
+      { name: 'favicon', type: 'text', default: "''" },
       { name: 'storeAddress', type: 'text', default: "''" },
       { name: 'storePhone', type: 'text', default: "''" },
       { name: 'taxNumber', type: 'text', default: "''" },

@@ -22,6 +22,7 @@ export default function Settings() {
   const { setSettings } = useAppStore();
   const [storeName, setStoreName] = useState('');
   const [storeLogo, setStoreLogo] = useState('');
+  const [favicon, setFavicon] = useState('');
   const [storeAddress, setStoreAddress] = useState('');
   const [storePhone, setStorePhone] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
@@ -91,6 +92,7 @@ export default function Settings() {
       if (current) {
         setStoreName(current.storeName);
         setStoreLogo(current.storeLogo ?? '');
+        setFavicon(current.favicon ?? '');
         setStoreAddress(current.storeAddress);
         setStorePhone(current.storePhone);
         setTaxNumber(current.taxNumber);
@@ -162,6 +164,7 @@ export default function Settings() {
       id: 1,
       storeName: storeName.trim(),
       storeLogo,
+      favicon,
       storeAddress: storeAddress.trim(),
       storePhone: storePhone.trim(),
       taxNumber: taxNumber.trim(),
@@ -202,6 +205,16 @@ export default function Settings() {
     toast.success('تم حفظ الإعدادات بنجاح');
   };
 
+  const applyFavicon = (dataUrl: string) => {
+    let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = dataUrl;
+  };
+
   const readImageFile = (file: File, onLoaded: (dataUrl: string) => void) => {
     if (!file.type.startsWith('image/')) {
       toast.error('يرجى اختيار ملف صورة');
@@ -215,6 +228,15 @@ export default function Settings() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) readImageFile(file, setStoreLogo);
+  };
+
+  const handleFaviconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) readImageFile(file, (dataUrl) => {
+      setFavicon(dataUrl);
+      // تطبيق فوري على تبويب المتصفح
+      applyFavicon(dataUrl);
+    });
   };
 
   const handleIdleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -250,6 +272,35 @@ export default function Settings() {
               {storeLogo && (
                 <button
                   onClick={() => setStoreLogo('')}
+                  className="flex items-center gap-1 px-3 py-2 text-sm text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  إزالة
+                </button>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-2">أيقونة النظام (Favicon)</label>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+                {favicon ? (
+                  <img src={favicon} alt="أيقونة النظام" className="w-full h-full object-contain" />
+                ) : (
+                  <span className="text-2xl select-none">🏪</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
+                  <Upload className="w-4 h-4" />
+                  رفع أيقونة
+                  <input type="file" accept="image/png,image/svg+xml,image/x-icon,image/jpeg,image/webp" onChange={handleFaviconUpload} className="hidden" />
+                </label>
+                <p className="text-xs text-slate-400">PNG أو SVG أو ICO — يظهر في تبويب المتصفح</p>
+              </div>
+              {favicon && (
+                <button
+                  onClick={() => { setFavicon(''); applyFavicon(''); }}
                   className="flex items-center gap-1 px-3 py-2 text-sm text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                 >
                   <X className="w-4 h-4" />

@@ -44,7 +44,14 @@ export default function HomePage() {
           db.settings.get(1).catch(() => null),
         ]);
         if (sessionData.user) setCurrentUser(sessionData.user);
-        if (storedSettings) setSettings(storedSettings);
+        if (storedSettings) {
+          setSettings(storedSettings);
+          if (storedSettings.favicon) {
+            let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+            if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+            link.href = storedSettings.favicon;
+          }
+        }
       } finally {
         setCheckingSession(false);
       }

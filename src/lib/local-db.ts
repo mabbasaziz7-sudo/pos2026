@@ -149,6 +149,7 @@ export interface Settings {
   id?: number;
   storeName: string;
   storeLogo: string;
+  favicon: string;
   storeAddress: string;
   storePhone: string;
   taxNumber: string;
