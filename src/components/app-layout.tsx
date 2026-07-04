@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { onSyncStatus, processSyncQueue } from '@/lib/sync-manager';
 
 const menuItems = [
   { id: 'dashboard',  label: 'لوحة التحكم',      icon: LayoutDashboard, color: 'text-yellow-400' },
@@ -50,30 +51,55 @@ function LiveClock() {
 }
 
 function DBStatus() {
-  const [online, setOnline] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<{ online: boolean; pending: number; syncing: boolean } | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    const check = async () => {
-      try {
-        const res = await fetch('/api/auth/me', { cache: 'no-store' });
-        if (mounted) setOnline(res.ok);
-      } catch {
-        if (mounted) setOnline(false);
-      }
-    };
-    check();
-    const id = setInterval(check, 30000);
-    return () => { mounted = false; clearInterval(id); };
+    const unsub = onSyncStatus(s => setStatus({ online: s.online, pending: s.pending, syncing: s.syncing }));
+    return () => { unsub(); };
   }, []);
 
-  if (online === null) return null;
+  const handleSync = async () => {
+    const { synced, failed } = await processSyncQueue();
+    if (synced > 0) toast.success(`تمت مزامنة ${synced} عملية`);
+    if (failed > 0) toast.error(`فشلت ${failed} عملية`);
+  };
+
+  if (status === null) return null;
+
+  if (!status.online) {
+    return (
+      <button onClick={handleSync}
+        className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-rose-100 text-rose-700 cursor-default">
+        <WifiOff className="w-3 h-3" />
+        أوف‑لاين
+        {status.pending > 0 && <span className="mr-0.5 bg-rose-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{status.pending}</span>}
+      </button>
+    );
+  }
+
+  if (status.syncing) {
+    return (
+      <span className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+        <Wifi className="w-3 h-3 animate-pulse" />
+        جارٍ المزامنة...
+      </span>
+    );
+  }
+
+  if (status.pending > 0) {
+    return (
+      <button onClick={handleSync}
+        className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200">
+        <Wifi className="w-3 h-3" />
+        مزامنة ({status.pending})
+      </button>
+    );
+  }
+
   return (
-    <span className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
-      online ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-    }`}>
-      {online ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-      DB {online ? 'Online' : 'Offline'}
+    <span className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+      <Wifi className="w-3 h-3" />
+      متصل
     </span>
   );
 }

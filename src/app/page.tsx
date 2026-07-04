@@ -30,6 +30,7 @@ import Orders from '@/components/orders';
 import Transactions from '@/components/transactions';
 import LoyaltyPrograms from '@/components/loyalty-programs';
 import Financials from '@/components/financials';
+import { initSyncManager } from '@/lib/sync-manager';
 
 export default function HomePage() {
   const { currentUser, activeTab, setCurrentUser, setSettings } = useAppStore();
@@ -58,6 +59,7 @@ export default function HomePage() {
       }
     };
     restore();
+    initSyncManager();
   }, [setCurrentUser, setSettings]);
 
   if (checkingSession) return null;

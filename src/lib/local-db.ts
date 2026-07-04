@@ -446,6 +446,8 @@ export interface LoyaltyTier {
 // تمامًا، واستبدلنا التنفيذ الداخلي فقط بطلبات شبكة إلى /api/db/[table] بدل قاعدة بيانات
 // محلية في المتصفح، حتى تُحفظ البيانات في قاعدة بيانات حقيقية مشتركة بين كل الأجهزة.
 
+import { getOfflineDb, CACHEABLE_TABLES, type SyncOp } from './offline-db';
+
 const DATE_FIELDS = new Set([
   'date', 'createdAt', 'updatedAt', 'startTime', 'endTime', 'sentAt', 'expiryDate', 'startDate', 'endDate',
 ]);
@@ -468,6 +470,26 @@ async function parseJsonOrThrow(res: Response) {
   return data;
 }
 
+// ── offline helper ──────────────────────────────────────────────────────────
+function isOnline() {
+  return typeof navigator === 'undefined' || navigator.onLine;
+}
+
+async function cacheRows(tableName: string, rows: unknown[]) {
+  const db = getOfflineDb();
+  if (!db || !CACHEABLE_TABLES.has(tableName)) return;
+  try {
+    await db.table(tableName).bulkPut(rows);
+  } catch { /* ignore */ }
+}
+
+async function queueOp(op: Omit<SyncOp, 'id' | 'retries'>) {
+  const db = getOfflineDb();
+  if (!db) return;
+  await db.syncOps.add({ ...op, retries: 0 });
+}
+
+// ── WhereEqualsClause ───────────────────────────────────────────────────────
 class WhereEqualsClause<T> {
   constructor(private tableName: string, private field: string, private value: unknown) {}
 
@@ -476,9 +498,28 @@ class WhereEqualsClause<T> {
   }
 
   async toArray(): Promise<T[]> {
-    const res = await fetch(this.url());
-    const rows = (await parseJsonOrThrow(res)) as T[];
-    return rows.map(reviveDates);
+    if (!isOnline()) {
+      const db = getOfflineDb();
+      if (db && CACHEABLE_TABLES.has(this.tableName)) {
+        const all = await db.table(this.tableName).toArray() as T[];
+        return all.filter(r => (r as Record<string, unknown>)[this.field] == this.value).map(reviveDates);
+      }
+      return [];
+    }
+    try {
+      const res = await fetch(this.url());
+      const rows = (await parseJsonOrThrow(res)) as T[];
+      const revived = rows.map(reviveDates);
+      await cacheRows(this.tableName, revived as unknown[]);
+      return revived;
+    } catch {
+      const db = getOfflineDb();
+      if (db && CACHEABLE_TABLES.has(this.tableName)) {
+        const all = await db.table(this.tableName).toArray() as T[];
+        return all.filter(r => (r as Record<string, unknown>)[this.field] == this.value).map(reviveDates);
+      }
+      return [];
+    }
   }
 
   async first(): Promise<T | undefined> {
@@ -487,13 +528,29 @@ class WhereEqualsClause<T> {
   }
 
   async modify(changes: Partial<T>): Promise<number> {
-    const res = await fetch(this.url(), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(changes),
-    });
-    const data = await parseJsonOrThrow(res);
-    return data.count ?? 0;
+    // update local cache optimistically
+    const db = getOfflineDb();
+    if (db && CACHEABLE_TABLES.has(this.tableName)) {
+      const all = await db.table(this.tableName).toArray() as (T & { id: number })[];
+      const matches = all.filter(r => (r as Record<string, unknown>)[this.field] == this.value);
+      for (const m of matches) await db.table(this.tableName).update(m.id, changes as object);
+    }
+    if (!isOnline()) {
+      await queueOp({ table: this.tableName, method: 'PATCH', url: this.url(), body: JSON.stringify(changes), createdAt: Date.now() });
+      return 0;
+    }
+    try {
+      const res = await fetch(this.url(), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      });
+      const data = await parseJsonOrThrow(res);
+      return data.count ?? 0;
+    } catch {
+      await queueOp({ table: this.tableName, method: 'PATCH', url: this.url(), body: JSON.stringify(changes), createdAt: Date.now() });
+      return 0;
+    }
   }
 }
 
@@ -504,25 +561,46 @@ class WhereClause<T> {
   }
 }
 
+async function fetchOrdered<T>(tableName: string, field: string, dir: 'asc' | 'desc'): Promise<T[]> {
+  if (!isOnline()) {
+    const db = getOfflineDb();
+    if (db && CACHEABLE_TABLES.has(tableName)) {
+      const all = await db.table(tableName).toArray() as T[];
+      const sorted = all.sort((a, b) => {
+        const av = (a as Record<string, unknown>)[field];
+        const bv = (b as Record<string, unknown>)[field];
+        const cmp = av == null ? -1 : bv == null ? 1 : (av as string) < (bv as string) ? -1 : (av as string) > (bv as string) ? 1 : 0;
+        return cmp * (dir === 'asc' ? 1 : -1);
+      });
+      return sorted.map(reviveDates);
+    }
+    return [];
+  }
+  try {
+    const res = await fetch(`/api/db/${tableName}?orderBy=${encodeURIComponent(field)}&dir=${dir}`);
+    const rows = (await parseJsonOrThrow(res)) as T[];
+    const revived = rows.map(reviveDates);
+    await cacheRows(tableName, revived as unknown[]);
+    return revived;
+  } catch {
+    const db = getOfflineDb();
+    if (db && CACHEABLE_TABLES.has(tableName)) {
+      const all = await db.table(tableName).toArray() as T[];
+      return all.map(reviveDates);
+    }
+    return [];
+  }
+}
+
 class OrderByReversedClause<T> {
   constructor(private tableName: string, private field: string) {}
-  async toArray(): Promise<T[]> {
-    const res = await fetch(`/api/db/${this.tableName}?orderBy=${encodeURIComponent(this.field)}&dir=desc`);
-    const rows = (await parseJsonOrThrow(res)) as T[];
-    return rows.map(reviveDates);
-  }
+  async toArray(): Promise<T[]> { return fetchOrdered<T>(this.tableName, this.field, 'desc'); }
 }
 
 class OrderByClause<T> {
   constructor(private tableName: string, private field: string) {}
-  async toArray(): Promise<T[]> {
-    const res = await fetch(`/api/db/${this.tableName}?orderBy=${encodeURIComponent(this.field)}&dir=asc`);
-    const rows = (await parseJsonOrThrow(res)) as T[];
-    return rows.map(reviveDates);
-  }
-  reverse(): OrderByReversedClause<T> {
-    return new OrderByReversedClause<T>(this.tableName, this.field);
-  }
+  async toArray(): Promise<T[]> { return fetchOrdered<T>(this.tableName, this.field, 'asc'); }
+  reverse(): OrderByReversedClause<T> { return new OrderByReversedClause<T>(this.tableName, this.field); }
 }
 
 class FilterClause<T> {
@@ -535,69 +613,214 @@ class FilterClause<T> {
   }
 }
 
+// ── ApiTable (offline-aware) ─────────────────────────────────────────────────
 class ApiTable<T extends { id?: number }> {
   constructor(private tableName: string) {}
 
   async toArray(): Promise<T[]> {
-    const res = await fetch(`/api/db/${this.tableName}`);
-    const rows = (await parseJsonOrThrow(res)) as T[];
-    return rows.map(reviveDates);
+    if (!isOnline()) {
+      const db = getOfflineDb();
+      if (db && CACHEABLE_TABLES.has(this.tableName)) {
+        return (await db.table(this.tableName).toArray() as T[]).map(reviveDates);
+      }
+      return [];
+    }
+    try {
+      const res = await fetch(`/api/db/${this.tableName}`);
+      const rows = (await parseJsonOrThrow(res)) as T[];
+      const revived = rows.map(reviveDates);
+      await cacheRows(this.tableName, revived as unknown[]);
+      return revived;
+    } catch {
+      const db = getOfflineDb();
+      if (db && CACHEABLE_TABLES.has(this.tableName)) {
+        return (await db.table(this.tableName).toArray() as T[]).map(reviveDates);
+      }
+      return [];
+    }
   }
 
   async add(obj: Omit<T, 'id'> | T): Promise<number> {
-    const res = await fetch(`/api/db/${this.tableName}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(obj),
-    });
-    const data = await parseJsonOrThrow(res);
-    return data.id;
+    const db = getOfflineDb();
+    // Generate a stable temp ID so local references work
+    const tempId = Date.now() + Math.floor(Math.random() * 9999);
+    const localObj = { ...obj, id: tempId };
+    if (db && CACHEABLE_TABLES.has(this.tableName)) {
+      await db.table(this.tableName).put(localObj).catch(() => {});
+    }
+    if (!isOnline()) {
+      await queueOp({
+        table: this.tableName, method: 'POST',
+        url: `/api/db/${this.tableName}`,
+        body: JSON.stringify(obj),
+        localTempId: tempId, createdAt: Date.now(),
+      });
+      return tempId;
+    }
+    try {
+      const res = await fetch(`/api/db/${this.tableName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj),
+      });
+      const data = await parseJsonOrThrow(res);
+      if (db && CACHEABLE_TABLES.has(this.tableName)) {
+        await db.table(this.tableName).delete(tempId).catch(() => {});
+        await db.table(this.tableName).put(data).catch(() => {});
+      }
+      return data.id;
+    } catch {
+      await queueOp({
+        table: this.tableName, method: 'POST',
+        url: `/api/db/${this.tableName}`,
+        body: JSON.stringify(obj),
+        localTempId: tempId, createdAt: Date.now(),
+      });
+      return tempId;
+    }
   }
 
   async bulkAdd(arr: (Omit<T, 'id'> | T)[]): Promise<void> {
-    const res = await fetch(`/api/db/${this.tableName}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(arr),
-    });
-    await parseJsonOrThrow(res);
+    if (!isOnline()) {
+      for (const item of arr) { await this.add(item); }
+      return;
+    }
+    try {
+      const res = await fetch(`/api/db/${this.tableName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(arr),
+      });
+      await parseJsonOrThrow(res);
+    } catch {
+      for (const item of arr) { await this.add(item); }
+    }
   }
 
   async get(id: number): Promise<T | undefined> {
-    const res = await fetch(`/api/db/${this.tableName}/${id}`);
-    if (res.status === 404) return undefined;
-    const data = await parseJsonOrThrow(res);
-    return reviveDates(data as T);
+    if (!isOnline()) {
+      const db = getOfflineDb();
+      if (db && CACHEABLE_TABLES.has(this.tableName)) {
+        const r = await db.table(this.tableName).get(id) as T | undefined;
+        return r ? reviveDates(r) : undefined;
+      }
+      return undefined;
+    }
+    try {
+      const res = await fetch(`/api/db/${this.tableName}/${id}`);
+      if (res.status === 404) return undefined;
+      const data = await parseJsonOrThrow(res);
+      const revived = reviveDates(data as T);
+      const db = getOfflineDb();
+      if (db && CACHEABLE_TABLES.has(this.tableName)) await db.table(this.tableName).put(revived).catch(() => {});
+      return revived;
+    } catch {
+      const db = getOfflineDb();
+      if (db && CACHEABLE_TABLES.has(this.tableName)) {
+        const r = await db.table(this.tableName).get(id) as T | undefined;
+        return r ? reviveDates(r) : undefined;
+      }
+      return undefined;
+    }
   }
 
   async update(id: number, changes: Partial<T>): Promise<number> {
-    const res = await fetch(`/api/db/${this.tableName}/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(changes),
-    });
-    return res.ok ? 1 : 0;
+    const db = getOfflineDb();
+    if (db && CACHEABLE_TABLES.has(this.tableName)) {
+      await db.table(this.tableName).update(id, changes as object).catch(() => {});
+    }
+    if (!isOnline()) {
+      await queueOp({
+        table: this.tableName, method: 'PATCH',
+        url: `/api/db/${this.tableName}/${id}`,
+        body: JSON.stringify(changes), createdAt: Date.now(),
+      });
+      return 1;
+    }
+    try {
+      const res = await fetch(`/api/db/${this.tableName}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      });
+      return res.ok ? 1 : 0;
+    } catch {
+      await queueOp({
+        table: this.tableName, method: 'PATCH',
+        url: `/api/db/${this.tableName}/${id}`,
+        body: JSON.stringify(changes), createdAt: Date.now(),
+      });
+      return 1;
+    }
   }
 
   async put(obj: T): Promise<number> {
     const id = obj.id;
-    const res = await fetch(`/api/db/${this.tableName}/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(obj),
-    });
-    const data = await parseJsonOrThrow(res);
-    return data.id;
+    const db = getOfflineDb();
+    if (db && CACHEABLE_TABLES.has(this.tableName)) {
+      await db.table(this.tableName).put(obj).catch(() => {});
+    }
+    if (!isOnline()) {
+      await queueOp({
+        table: this.tableName, method: 'PUT',
+        url: `/api/db/${this.tableName}/${id}`,
+        body: JSON.stringify(obj), createdAt: Date.now(),
+      });
+      return id ?? 0;
+    }
+    try {
+      const res = await fetch(`/api/db/${this.tableName}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj),
+      });
+      const data = await parseJsonOrThrow(res);
+      return data.id;
+    } catch {
+      await queueOp({
+        table: this.tableName, method: 'PUT',
+        url: `/api/db/${this.tableName}/${id}`,
+        body: JSON.stringify(obj), createdAt: Date.now(),
+      });
+      return id ?? 0;
+    }
   }
 
   async delete(id: number): Promise<void> {
-    const res = await fetch(`/api/db/${this.tableName}/${id}`, { method: 'DELETE' });
-    await parseJsonOrThrow(res);
+    const db = getOfflineDb();
+    if (db && CACHEABLE_TABLES.has(this.tableName)) {
+      await db.table(this.tableName).delete(id).catch(() => {});
+    }
+    if (!isOnline()) {
+      await queueOp({
+        table: this.tableName, method: 'DELETE',
+        url: `/api/db/${this.tableName}/${id}`,
+        createdAt: Date.now(),
+      });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/db/${this.tableName}/${id}`, { method: 'DELETE' });
+      await parseJsonOrThrow(res);
+    } catch {
+      await queueOp({
+        table: this.tableName, method: 'DELETE',
+        url: `/api/db/${this.tableName}/${id}`,
+        createdAt: Date.now(),
+      });
+    }
   }
 
   async clear(): Promise<void> {
-    const res = await fetch(`/api/db/${this.tableName}`, { method: 'DELETE' });
-    await parseJsonOrThrow(res);
+    const db = getOfflineDb();
+    if (db && CACHEABLE_TABLES.has(this.tableName)) {
+      await db.table(this.tableName).clear().catch(() => {});
+    }
+    if (!isOnline()) return;
+    try {
+      const res = await fetch(`/api/db/${this.tableName}`, { method: 'DELETE' });
+      await parseJsonOrThrow(res);
+    } catch { /* ignore */ }
   }
 
   async count(): Promise<number> {
