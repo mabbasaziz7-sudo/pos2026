@@ -29,6 +29,7 @@ import Employees from '@/components/employees';
 import Orders from '@/components/orders';
 import Transactions from '@/components/transactions';
 import LoyaltyPrograms from '@/components/loyalty-programs';
+import Financials from '@/components/financials';
 
 export default function HomePage() {
   const { currentUser, activeTab, setCurrentUser, setSettings } = useAppStore();
@@ -91,6 +92,7 @@ export default function HomePage() {
       {activeTab === 'orders' && <Orders />}
       {activeTab === 'transactions' && <Transactions />}
       {activeTab === 'loyalty' && <LoyaltyPrograms />}
+      {activeTab === 'financials' && <Financials />}
       {activeTab === 'reports' && <Reports />}
       {activeTab === 'users' && <Users />}
       {activeTab === 'backup' && <Backup />}

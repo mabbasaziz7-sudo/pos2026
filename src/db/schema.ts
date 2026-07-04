@@ -429,6 +429,50 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'userName', type: 'text' },
     ],
   },
+
+  financialVouchers: {
+    columns: [
+      id(),
+      { name: 'voucherNumber', type: 'text' },
+      { name: 'type', type: 'text', default: "'receipt'" },
+      { name: 'date', type: 'timestamp' },
+      { name: 'amount', type: 'numeric', default: '0' },
+      { name: 'partyName', type: 'text', default: "''" },
+      { name: 'partyType', type: 'text', default: "'other'" },
+      { name: 'partyId', type: 'integer', nullable: true },
+      { name: 'description', type: 'text', default: "''" },
+      { name: 'paymentMethod', type: 'text', default: "'cash'" },
+      { name: 'checkNumber', type: 'text', nullable: true },
+      { name: 'bankName', type: 'text', nullable: true },
+      { name: 'notes', type: 'text', nullable: true },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+      { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
+
+  salaryPayments: {
+    columns: [
+      id(),
+      { name: 'voucherNumber', type: 'text' },
+      { name: 'employeeId', type: 'integer' },
+      { name: 'employeeName', type: 'text' },
+      { name: 'employeePosition', type: 'text', default: "''" },
+      { name: 'month', type: 'integer' },
+      { name: 'year', type: 'integer' },
+      { name: 'basicSalary', type: 'numeric', default: '0' },
+      { name: 'allowances', type: 'numeric', default: '0' },
+      { name: 'deductions', type: 'numeric', default: '0' },
+      { name: 'netSalary', type: 'numeric', default: '0' },
+      { name: 'status', type: 'text', default: "'pending'" },
+      { name: 'paidAt', type: 'timestamp', nullable: true },
+      { name: 'paymentMethod', type: 'text', default: "'cash'" },
+      { name: 'notes', type: 'text', nullable: true },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+      { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
 };
 
 export const TABLE_NAMES = Object.keys(SCHEMA);

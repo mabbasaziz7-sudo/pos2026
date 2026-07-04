@@ -33,6 +33,7 @@ const allPermissions = [
   { id: 'reports', label: 'التقارير' },
   { id: 'users', label: 'إدارة المستخدمين' },
   { id: 'backup', label: 'النسخ الاحتياطي' },
+  { id: 'financials', label: 'السندات والرواتب' },
 ];
 
 const roleLabels: Record<string, string> = {

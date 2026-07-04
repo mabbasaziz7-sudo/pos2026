@@ -617,6 +617,48 @@ class ApiTable<T extends { id?: number }> {
   }
 }
 
+// ===== السندات المالية =====
+export interface FinancialVoucher {
+  id?: number;
+  voucherNumber: string;
+  type: 'receipt' | 'payment' | 'collection';
+  date: Date;
+  amount: number;
+  partyName: string;
+  partyType: 'customer' | 'supplier' | 'employee' | 'other';
+  partyId?: number;
+  description: string;
+  paymentMethod: 'cash' | 'transfer' | 'check';
+  checkNumber?: string;
+  bankName?: string;
+  notes?: string;
+  userId: number;
+  userName: string;
+  createdAt: Date;
+}
+
+// ===== الرواتب =====
+export interface SalaryPayment {
+  id?: number;
+  voucherNumber: string;
+  employeeId: number;
+  employeeName: string;
+  employeePosition: string;
+  month: number;
+  year: number;
+  basicSalary: number;
+  allowances: number;
+  deductions: number;
+  netSalary: number;
+  status: 'pending' | 'paid';
+  paidAt?: Date;
+  paymentMethod: 'cash' | 'transfer';
+  notes?: string;
+  userId: number;
+  userName: string;
+  createdAt: Date;
+}
+
 class ApiDatabase {
   products = new ApiTable<Product>('products');
   customers = new ApiTable<Customer>('customers');
@@ -642,6 +684,8 @@ class ApiDatabase {
   customerGroups = new ApiTable<CustomerGroup>('customerGroups');
   whatsappLogs = new ApiTable<WhatsAppLog>('whatsappLogs');
   walletTransactions = new ApiTable<WalletTransaction>('walletTransactions');
+  financialVouchers = new ApiTable<FinancialVoucher>('financialVouchers');
+  salaryPayments = new ApiTable<SalaryPayment>('salaryPayments');
 }
 
 export const db = new ApiDatabase();

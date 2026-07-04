@@ -6,7 +6,7 @@ import {
   BarChart3, Shield, Download, LogOut, Menu, X, Store,
   ChevronLeft, Settings, Receipt, ClipboardList, Tag, Gift,
   MessageCircle, RotateCcw, LayoutDashboard, Palette, Wifi, WifiOff,
-  Users2, ClipboardCheck, ArrowLeftRight, Star,
+  Users2, ClipboardCheck, ArrowLeftRight, Star, FileText,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -30,6 +30,7 @@ const menuItems = [
   { id: 'employees',  label: 'الموظفون',          icon: Users2,          color: 'text-blue-300' },
   { id: 'transactions',label: 'المعاملات المالية', icon: ArrowLeftRight, color: 'text-yellow-300' },
   { id: 'loyalty',    label: 'الولاء والمكافآت', icon: Star,            color: 'text-amber-400' },
+  { id: 'financials', label: 'السندات والرواتب', icon: FileText,        color: 'text-green-300' },
   { id: 'reports',    label: 'التقارير',          icon: BarChart3,       color: 'text-orange-400' },
   { id: 'users',      label: 'المستخدمين',        icon: Shield,          color: 'text-indigo-400' },
   { id: 'backup',     label: 'نسخ احتياطي',      icon: Download,        color: 'text-teal-400' },
