@@ -473,6 +473,35 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'createdAt', type: 'timestamp' },
     ],
   },
+
+  expenseCategories: {
+    columns: [
+      id(),
+      { name: 'name', type: 'text' },
+      { name: 'icon', type: 'text', default: "'💰'" },
+      { name: 'budgetMonthly', type: 'numeric', nullable: true },
+      { name: 'isActive', type: 'boolean', default: 'true' },
+    ],
+  },
+
+  expenses: {
+    columns: [
+      id(),
+      { name: 'date', type: 'timestamp' },
+      { name: 'categoryId', type: 'integer' },
+      { name: 'categoryName', type: 'text' },
+      { name: 'description', type: 'text' },
+      { name: 'amount', type: 'numeric', default: '0' },
+      { name: 'paymentMethod', type: 'text', default: "'cash'" },
+      { name: 'checkNumber', type: 'text', nullable: true },
+      { name: 'bankName', type: 'text', nullable: true },
+      { name: 'receiptNumber', type: 'text', nullable: true },
+      { name: 'notes', type: 'text', nullable: true },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+      { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
 };
 
 export const TABLE_NAMES = Object.keys(SCHEMA);

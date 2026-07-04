@@ -617,6 +617,33 @@ class ApiTable<T extends { id?: number }> {
   }
 }
 
+// ===== فئات المصروفات =====
+export interface ExpenseCategory {
+  id?: number;
+  name: string;
+  icon: string;
+  budgetMonthly?: number;
+  isActive: boolean;
+}
+
+// ===== المصروفات =====
+export interface Expense {
+  id?: number;
+  date: Date;
+  categoryId: number;
+  categoryName: string;
+  description: string;
+  amount: number;
+  paymentMethod: 'cash' | 'transfer' | 'check';
+  checkNumber?: string;
+  bankName?: string;
+  receiptNumber?: string;
+  notes?: string;
+  userId: number;
+  userName: string;
+  createdAt: Date;
+}
+
 // ===== السندات المالية =====
 export interface FinancialVoucher {
   id?: number;
@@ -686,6 +713,8 @@ class ApiDatabase {
   walletTransactions = new ApiTable<WalletTransaction>('walletTransactions');
   financialVouchers = new ApiTable<FinancialVoucher>('financialVouchers');
   salaryPayments = new ApiTable<SalaryPayment>('salaryPayments');
+  expenseCategories = new ApiTable<ExpenseCategory>('expenseCategories');
+  expenses = new ApiTable<Expense>('expenses');
 }
 
 export const db = new ApiDatabase();
