@@ -17,6 +17,7 @@ export type CustomerDisplayMessage =
       tax: number;
       total: number;
       customerName?: string;
+      currentItem?: CustomerDisplayItem;
     }
   | {
       type: 'sale-complete';

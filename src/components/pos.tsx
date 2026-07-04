@@ -459,6 +459,8 @@ export default function POS() {
   const finalDue = Math.max(total - voucherAmount - loyaltyRedeemAmount, 0);
 
   const displayChannelRef = useRef<BroadcastChannel | null>(null);
+  const currentItemRef = useRef<import('@/lib/customer-display').CustomerDisplayItem | null>(null);
+  const currentItemTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const broadcastCart = useCallback(() => {
     displayChannelRef.current?.postMessage({
@@ -475,6 +477,7 @@ export default function POS() {
       tax,
       total,
       customerName: selectedCustomer?.name,
+      currentItem: currentItemRef.current ?? undefined,
     } satisfies CustomerDisplayMessage);
   }, [cart, subtotal, discountTotal, tax, total, selectedCustomer, settings]);
 
@@ -523,6 +526,13 @@ export default function POS() {
 
       const product = await db.products.where('barcode').equals(trimmed).first();
       if (product) {
+        const price = product.price * (1 - Math.max(product.discount || 0, getOfferDiscountPercent(product)) / 100);
+        currentItemRef.current = { name: product.name, quantity: 1, price, total: price };
+        if (currentItemTimerRef.current) clearTimeout(currentItemTimerRef.current);
+        currentItemTimerRef.current = setTimeout(() => {
+          currentItemRef.current = null;
+          broadcastCart();
+        }, 3500);
         addToCart(product);
         setBarcodeInput('');
         playScanBeep('success');
@@ -531,7 +541,7 @@ export default function POS() {
         toast.error('الباركود غير موجود');
       }
     },
-    [settings]
+    [settings, broadcastCart]
   );
 
   const handleBarcode = useCallback(
