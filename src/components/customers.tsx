@@ -17,11 +17,14 @@ import {
   CreditCard,
   DollarSign,
   Printer,
+  Wallet,
+  PlusCircle,
+  History,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Customers() {
-  const { settings } = useAppStore();
+  const { settings, currentUser } = useAppStore();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -42,6 +45,12 @@ export default function Customers() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [walletTopupAmount, setWalletTopupAmount] = useState('');
+  const [walletTopupNote, setWalletTopupNote] = useState('');
+  const [walletCustomer, setWalletCustomer] = useState<Customer | null>(null);
+  const [walletHistory, setWalletHistory] = useState<import('@/lib/local-db').WalletTransaction[]>([]);
+  const [showWalletHistory, setShowWalletHistory] = useState(false);
 
   useEffect(() => {
     loadCustomers();
@@ -210,7 +219,48 @@ export default function Customers() {
     viewDetails({ ...selectedCustomer, balance: Math.max(0, selectedCustomer.balance - amount) });
   };
 
+  const openWalletTopup = async (customer: Customer) => {
+    setWalletCustomer(customer);
+    setWalletTopupAmount('');
+    setWalletTopupNote('');
+    const history = await db.walletTransactions
+      .where('customerId').equals(customer.id!).toArray();
+    setWalletHistory(history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    setShowWalletModal(true);
+    setShowWalletHistory(false);
+  };
+
+  const handleWalletTopup = async () => {
+    if (!walletCustomer) return;
+    const amount = parseFloat(walletTopupAmount);
+    if (!amount || amount <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return; }
+    const balanceBefore = walletCustomer.walletBalance ?? 0;
+    const balanceAfter = balanceBefore + amount;
+    await db.customers.update(walletCustomer.id!, { walletBalance: balanceAfter });
+    await db.walletTransactions.add({
+      customerId: walletCustomer.id!,
+      customerName: walletCustomer.name,
+      type: 'topup',
+      amount,
+      balanceBefore,
+      balanceAfter,
+      note: walletTopupNote.trim() || undefined,
+      date: new Date(),
+      userId: currentUser?.id ?? 0,
+      userName: currentUser?.username ?? '',
+    });
+    toast.success(`تم شحن ${formatCurrency(amount)} للمحفظة`);
+    setWalletCustomer({ ...walletCustomer, walletBalance: balanceAfter });
+    setWalletTopupAmount('');
+    setWalletTopupNote('');
+    loadCustomers();
+    const history = await db.walletTransactions
+      .where('customerId').equals(walletCustomer.id!).toArray();
+    setWalletHistory(history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+  };
+
   const totalBalance = customers.reduce((sum, c) => sum + c.balance, 0);
+  const totalWalletBalance = customers.reduce((sum, c) => sum + (c.walletBalance ?? 0), 0);
   const totalCreditLimit = customers.reduce((sum, c) => sum + c.creditLimit, 0);
 
   return (
@@ -255,6 +305,10 @@ export default function Customers() {
           <p className="text-sm text-slate-500">عملاء آجلون</p>
           <p className="text-2xl font-bold text-amber-600">{customers.filter((c) => c.balance > 0).length}</p>
         </div>
+        <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm">
+          <p className="text-sm text-slate-500">رصيد المحافظ</p>
+          <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalWalletBalance)}</p>
+        </div>
       </div>
 
       {/* Customers Table */}
@@ -267,6 +321,7 @@ export default function Customers() {
                 <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">الهاتف</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">العنوان</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">الرصيد</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">المحفظة</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">حد الائتمان</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">نقاط الولاء</th>
                 <th className="px-4 py-3 text-center text-sm font-medium text-slate-600">إجراءات</th>
@@ -284,6 +339,18 @@ export default function Customers() {
                     <span className={`text-sm font-medium ${customer.balance > 0 ? 'text-rose-600' : 'text-slate-600'}`}>
                       {formatCurrency(customer.balance)}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium text-emerald-600">{formatCurrency(customer.walletBalance ?? 0)}</span>
+                      <button
+                        onClick={() => openWalletTopup(customer)}
+                        className="p-1 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                        title="شحن المحفظة"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600">{formatCurrency(customer.creditLimit)}</td>
                   <td className="px-4 py-3 text-sm font-medium text-purple-600">{customer.loyaltyPoints ?? 0}</td>
@@ -604,6 +671,89 @@ export default function Customers() {
                   إلغاء
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wallet Modal */}
+      {showWalletModal && walletCustomer && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-emerald-500" />
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">{walletCustomer.name}</h3>
+                  <p className="text-sm text-slate-500">رصيد المحفظة: <span className="font-bold text-emerald-600">{formatCurrency(walletCustomer.walletBalance ?? 0)}</span></p>
+                </div>
+              </div>
+              <button onClick={() => setShowWalletModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Topup Form */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3 mb-4">
+              <p className="text-sm font-medium text-emerald-700">شحن المحفظة</p>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={walletTopupAmount}
+                  onChange={(e) => setWalletTopupAmount(e.target.value)}
+                  placeholder="المبلغ"
+                  min="0"
+                  step="0.01"
+                  className="flex-1 px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <button
+                  onClick={handleWalletTopup}
+                  disabled={!walletTopupAmount || parseFloat(walletTopupAmount) <= 0}
+                  className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white font-medium rounded-lg flex items-center gap-1"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  شحن
+                </button>
+              </div>
+              <input
+                type="text"
+                value={walletTopupNote}
+                onChange={(e) => setWalletTopupNote(e.target.value)}
+                placeholder="ملاحظة (اختياري)"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+              />
+            </div>
+
+            {/* History */}
+            <div>
+              <button
+                onClick={() => setShowWalletHistory(!showWalletHistory)}
+                className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-800 mb-2"
+              >
+                <History className="w-4 h-4" />
+                سجل المعاملات ({walletHistory.length})
+              </button>
+              {showWalletHistory && (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {walletHistory.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-4">لا توجد معاملات</p>
+                  ) : walletHistory.map((tx) => (
+                    <div key={tx.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg text-sm">
+                      <div>
+                        <span className={`font-medium ${tx.type === 'topup' ? 'text-emerald-600' : tx.type === 'refund' ? 'text-blue-600' : 'text-rose-600'}`}>
+                          {tx.type === 'topup' ? '▲ شحن' : tx.type === 'refund' ? '↩ استرداد' : '▼ شراء'}
+                          {' '}{formatCurrency(tx.amount)}
+                        </span>
+                        {tx.note && <p className="text-xs text-slate-400">{tx.note}</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-slate-500">{formatDate(tx.date)}</p>
+                        <p className="text-xs text-slate-400">الرصيد: {formatCurrency(tx.balanceAfter)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -61,7 +61,7 @@ export default function POS() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentType, setPaymentType] = useState<'cash' | 'credit' | 'mixed'>('cash');
+  const [paymentType, setPaymentType] = useState<'cash' | 'credit' | 'mixed' | 'wallet'>('cash');
   const [paidAmount, setPaidAmount] = useState('');
   const [saleNotes, setSaleNotes] = useState('');
   const [showShiftModal, setShowShiftModal] = useState(false);
@@ -549,7 +549,7 @@ export default function POS() {
       return;
     }
 
-    const cashPaid = paymentType === 'credit' ? 0 : parseFloat(paidAmount) || finalDue;
+    const cashPaid = (paymentType === 'credit' || paymentType === 'wallet') ? 0 : parseFloat(paidAmount) || finalDue;
     const unpaidPortion = finalDue - cashPaid;
 
     if (paymentType === 'cash' && cashPaid < finalDue) {
@@ -560,6 +560,17 @@ export default function POS() {
     if (paymentType === 'credit' && !selectedCustomer) {
       toast.error('يرجى اختيار عميل للبيع بالآجل');
       return;
+    }
+
+    if (paymentType === 'wallet') {
+      if (!selectedCustomer) {
+        toast.error('يرجى اختيار عميل للدفع من المحفظة');
+        return;
+      }
+      if ((selectedCustomer.walletBalance ?? 0) < finalDue) {
+        toast.error(`رصيد المحفظة غير كافٍ — الرصيد الحالي: ${formatCurrency(selectedCustomer.walletBalance ?? 0)}`);
+        return;
+      }
     }
 
     const saleItems = cart.map((item) => ({
@@ -636,6 +647,25 @@ export default function POS() {
       if (selectedCustomer && paymentType === 'credit') {
         await db.customers.update(selectedCustomer.id!, {
           balance: selectedCustomer.balance + remaining,
+        });
+      }
+
+      // Deduct wallet balance if wallet payment
+      if (selectedCustomer && paymentType === 'wallet') {
+        const walletBefore = selectedCustomer.walletBalance ?? 0;
+        const walletAfter = walletBefore - finalDue;
+        await db.customers.update(selectedCustomer.id!, { walletBalance: walletAfter });
+        await db.walletTransactions.add({
+          customerId: selectedCustomer.id!,
+          customerName: selectedCustomer.name,
+          type: 'purchase',
+          amount: finalDue,
+          balanceBefore: walletBefore,
+          balanceAfter: walletAfter,
+          saleId: saleId,
+          date: new Date(),
+          userId: currentUser.id!,
+          userName: currentUser.name,
         });
       }
 
@@ -1245,23 +1275,41 @@ export default function POS() {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-2">
-                {(['cash', 'credit', 'mixed'] as const).map((type) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(['cash', 'credit', 'mixed', 'wallet'] as const).map((type) => (
                   <button
                     key={type}
                     onClick={() => setPaymentType(type)}
+                    disabled={type === 'wallet' && !selectedCustomer}
                     className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
                       paymentType === type
                         ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : type === 'wallet' && !selectedCustomer
+                        ? 'border-slate-100 text-slate-300 cursor-not-allowed'
                         : 'border-slate-200 hover:bg-slate-50'
                     }`}
                   >
-                    {type === 'cash' ? 'نقدي' : type === 'credit' ? 'آجل' : 'مختلط'}
+                    {type === 'cash' ? '💵 نقدي' : type === 'credit' ? '📋 آجل' : type === 'mixed' ? '🔀 مختلط' : '👛 محفظة'}
                   </button>
                 ))}
               </div>
+              {paymentType === 'wallet' && selectedCustomer && (
+                <div className={`p-3 rounded-lg text-sm ${(selectedCustomer.walletBalance ?? 0) >= finalDue ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'}`}>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">رصيد المحفظة</span>
+                    <span className={`font-bold ${(selectedCustomer.walletBalance ?? 0) >= finalDue ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {formatCurrency(selectedCustomer.walletBalance ?? 0)}
+                    </span>
+                  </div>
+                  {(selectedCustomer.walletBalance ?? 0) >= finalDue ? (
+                    <p className="text-xs text-emerald-600 mt-1">✓ الرصيد كافٍ — سيُخصم {formatCurrency(finalDue)}</p>
+                  ) : (
+                    <p className="text-xs text-rose-600 mt-1">✗ الرصيد غير كافٍ — ينقص {formatCurrency(finalDue - (selectedCustomer.walletBalance ?? 0))}</p>
+                  )}
+                </div>
+              )}
 
-              {paymentType !== 'credit' && (
+              {paymentType !== 'credit' && paymentType !== 'wallet' && (
                 <div>
                   <label className="block text-sm font-medium text-slate-600 mb-1">المبلغ المدفوع</label>
                   <input
@@ -1452,7 +1500,7 @@ export default function POS() {
                 )}
                 <div className="receipt-center text-xs text-slate-500 pt-1">
                   <p>طريقة الدفع</p>
-                  <p>{lastSale.paymentType === 'cash' ? 'نقدي' : lastSale.paymentType === 'credit' ? 'آجل' : 'مختلط'}</p>
+                  <p>{lastSale.paymentType === 'cash' ? 'نقدي' : lastSale.paymentType === 'credit' ? 'آجل' : lastSale.paymentType === 'wallet' ? 'محفظة' : 'مختلط'}</p>
                 </div>
 
                 {/* معلومات التوصيل على الإيصال */}

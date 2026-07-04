@@ -46,6 +46,7 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'email', type: 'text', nullable: true },
       { name: 'creditLimit', type: 'numeric', default: '0' },
       { name: 'balance', type: 'numeric', default: '0' },
+      { name: 'walletBalance', type: 'numeric', default: '0' },
       { name: 'loyaltyPoints', type: 'numeric', default: '0' },
       { name: 'createdAt', type: 'timestamp' },
     ],
@@ -409,6 +410,23 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'benefits', type: 'text', default: "''" },
       { name: 'isActive', type: 'boolean', default: 'true' },
       { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
+
+  walletTransactions: {
+    columns: [
+      id(),
+      { name: 'customerId', type: 'integer' },
+      { name: 'customerName', type: 'text' },
+      { name: 'type', type: 'text', default: "'topup'" },
+      { name: 'amount', type: 'numeric', default: '0' },
+      { name: 'balanceBefore', type: 'numeric', default: '0' },
+      { name: 'balanceAfter', type: 'numeric', default: '0' },
+      { name: 'note', type: 'text', nullable: true },
+      { name: 'saleId', type: 'integer', nullable: true },
+      { name: 'date', type: 'timestamp' },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
     ],
   },
 };

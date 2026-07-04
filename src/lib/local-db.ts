@@ -23,8 +23,24 @@ export interface Customer {
   email?: string;
   creditLimit: number;
   balance: number;
+  walletBalance: number;
   loyaltyPoints: number;
   createdAt: Date;
+}
+
+export interface WalletTransaction {
+  id?: number;
+  customerId: number;
+  customerName: string;
+  type: 'topup' | 'purchase' | 'refund';
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  note?: string;
+  saleId?: number;
+  date: Date;
+  userId: number;
+  userName: string;
 }
 
 export interface Supplier {
@@ -101,7 +117,7 @@ export interface Sale {
   total: number;
   paid: number;
   remaining: number;
-  paymentType: 'cash' | 'credit' | 'mixed';
+  paymentType: 'cash' | 'credit' | 'mixed' | 'wallet';
   status: 'completed' | 'pending' | 'cancelled';
   date: Date;
   notes?: string;
@@ -340,7 +356,7 @@ export interface ParkedSale {
   voucherCode?: string;
   voucherAmount: number;
   loyaltyPointsRedeemed: number;
-  paymentType: 'cash' | 'credit' | 'mixed';
+  paymentType: 'cash' | 'credit' | 'mixed' | 'wallet';
   notes?: string;
   createdAt: Date;
 }
@@ -625,6 +641,7 @@ class ApiDatabase {
   loyaltyTiers = new ApiTable<LoyaltyTier>('loyaltyTiers');
   customerGroups = new ApiTable<CustomerGroup>('customerGroups');
   whatsappLogs = new ApiTable<WhatsAppLog>('whatsappLogs');
+  walletTransactions = new ApiTable<WalletTransaction>('walletTransactions');
 }
 
 export const db = new ApiDatabase();
