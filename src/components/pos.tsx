@@ -669,30 +669,6 @@ export default function POS() {
         });
       }
 
-      // زيادة الدفع النقدي → محفظة العميل تلقائياً
-      if (selectedCustomer && paymentType === 'cash') {
-        const change = cashPaid - finalDue;
-        if (change > 0) {
-          const walletBefore = selectedCustomer.walletBalance ?? 0;
-          const walletAfter = walletBefore + change;
-          await db.customers.update(selectedCustomer.id!, { walletBalance: walletAfter });
-          await db.walletTransactions.add({
-            customerId: selectedCustomer.id!,
-            customerName: selectedCustomer.name,
-            type: 'topup',
-            amount: change,
-            balanceBefore: walletBefore,
-            balanceAfter: walletAfter,
-            note: `زيادة فاتورة ${sale.invoiceNumber}`,
-            saleId: saleId,
-            date: new Date(),
-            userId: currentUser.id!,
-            userName: currentUser.name,
-          });
-          toast.success(`تم إضافة ${formatCurrency(change)} إلى محفظة ${selectedCustomer.name}`);
-        }
-      }
-
       // Update customer loyalty points (redeem + earn)
       if (selectedCustomer) {
         await db.customers.update(selectedCustomer.id!, {
@@ -1346,11 +1322,9 @@ export default function POS() {
                     step="0.01"
                   />
                   {parseFloat(paidAmount) > finalDue && (
-                    <div className={`mt-2 p-2 rounded-lg text-sm ${selectedCustomer ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'text-amber-600'}`}>
-                      {selectedCustomer
-                        ? `👛 سيُضاف ${formatCurrency(parseFloat(paidAmount) - finalDue)} إلى محفظة ${selectedCustomer.name}`
-                        : `الباقي: ${formatCurrency(parseFloat(paidAmount) - finalDue)}`}
-                    </div>
+                    <p className="text-sm text-amber-600 mt-1">
+                      الباقي: {formatCurrency(parseFloat(paidAmount) - finalDue)}
+                    </p>
                   )}
                 </div>
               )}
