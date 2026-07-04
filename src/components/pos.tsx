@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JsBarcode from 'jsbarcode';
+import { playScanBeep } from '@/lib/sounds';
 
 interface CartItem {
   product: Product;
@@ -510,9 +511,11 @@ export default function POS() {
           if (weighedProduct) {
             addToCart(weighedProduct, decoded.weightKg);
             setBarcodeInput('');
+            playScanBeep('success');
             toast.success(`تمت إضافة ${decoded.weightKg.toFixed(3)} كجم من ${weighedProduct.name}`);
             return;
           }
+          playScanBeep('error');
           toast.error('لم يتم العثور على منتج بكود الميزان هذا');
           return;
         }
@@ -522,7 +525,9 @@ export default function POS() {
       if (product) {
         addToCart(product);
         setBarcodeInput('');
+        playScanBeep('success');
       } else {
+        playScanBeep('error');
         toast.error('الباركود غير موجود');
       }
     },
