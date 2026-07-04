@@ -636,13 +636,20 @@ function PayrollPanel() {
    SUB-TAB 3 — المصروفات
 ═══════════════════════════════════════════════════════════════════ */
 const DEFAULT_CATEGORIES = [
-  { name: 'إيجار', icon: '🏢' },
-  { name: 'كهرباء وماء', icon: '💡' },
+  { name: 'إيجار المحل', icon: '🏢' },
+  { name: 'كهرباء', icon: '⚡' },
+  { name: 'ماء', icon: '💧' },
+  { name: 'غاز', icon: '🔥' },
+  { name: 'رواتب موظفين', icon: '👥' },
   { name: 'مشتريات ومواد', icon: '📦' },
-  { name: 'صيانة', icon: '🔧' },
+  { name: 'صيانة وإصلاح', icon: '🔧' },
   { name: 'تسويق وإعلان', icon: '📢' },
-  { name: 'مواصلات', icon: '🚗' },
+  { name: 'مواصلات ووقود', icon: '🚗' },
   { name: 'اتصالات وإنترنت', icon: '📡' },
+  { name: 'تأمين', icon: '🛡️' },
+  { name: 'نظافة', icon: '🧹' },
+  { name: 'ضرائب ورسوم', icon: '📋' },
+  { name: 'مصاريف إدارية', icon: '🗂️' },
   { name: 'أخرى', icon: '💰' },
 ];
 
@@ -679,8 +686,17 @@ function ExpensesPanel() {
       db.expenses.orderBy('date').reverse().toArray(),
       db.expenseCategories.filter(c => c.isActive).toArray(),
     ]);
+    // auto-seed on first use
+    if (cats.length === 0) {
+      for (const c of DEFAULT_CATEGORIES) {
+        await db.expenseCategories.add({ ...c, isActive: true });
+      }
+      const seeded = await db.expenseCategories.filter(c => c.isActive).toArray();
+      setCategories(seeded);
+    } else {
+      setCategories(cats);
+    }
     setExpenses(exs);
-    setCategories(cats);
   }, []);
 
   useEffect(() => { load(); }, [load]);
