@@ -63,7 +63,6 @@ export default function POS() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentType, setPaymentType] = useState<'cash' | 'credit' | 'mixed' | 'wallet'>('cash');
   const [paidAmount, setPaidAmount] = useState('');
-  const [addChangeToWallet, setAddChangeToWallet] = useState(true);
   const [saleNotes, setSaleNotes] = useState('');
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [startingCash, setStartingCash] = useState('');
@@ -671,7 +670,7 @@ export default function POS() {
       }
 
       // زيادة الدفع النقدي → محفظة العميل تلقائياً
-      if (selectedCustomer && paymentType === 'cash' && addChangeToWallet) {
+      if (selectedCustomer && paymentType === 'cash') {
         const change = cashPaid - finalDue;
         if (change > 0) {
           const walletBefore = selectedCustomer.walletBalance ?? 0;
@@ -1347,27 +1346,10 @@ export default function POS() {
                     step="0.01"
                   />
                   {parseFloat(paidAmount) > finalDue && (
-                    <div className="mt-2 space-y-1">
-                      {selectedCustomer ? (
-                        <>
-                          <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={addChangeToWallet}
-                              onChange={(e) => setAddChangeToWallet(e.target.checked)}
-                              className="w-4 h-4 accent-emerald-500"
-                            />
-                            <span className="text-sm text-emerald-700 font-medium">
-                              إضافة الزيادة ({formatCurrency(parseFloat(paidAmount) - finalDue)}) إلى محفظة {selectedCustomer.name}
-                            </span>
-                          </label>
-                          {!addChangeToWallet && (
-                            <p className="text-sm text-amber-600 mr-6">الباقي نقداً: {formatCurrency(parseFloat(paidAmount) - finalDue)}</p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-sm text-amber-600">الباقي: {formatCurrency(parseFloat(paidAmount) - finalDue)}</p>
-                      )}
+                    <div className={`mt-2 p-2 rounded-lg text-sm ${selectedCustomer ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'text-amber-600'}`}>
+                      {selectedCustomer
+                        ? `👛 سيُضاف ${formatCurrency(parseFloat(paidAmount) - finalDue)} إلى محفظة ${selectedCustomer.name}`
+                        : `الباقي: ${formatCurrency(parseFloat(paidAmount) - finalDue)}`}
                     </div>
                   )}
                 </div>
