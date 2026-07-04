@@ -232,10 +232,13 @@ export default function POS() {
   };
 
   const checkShift = async () => {
-    if (!currentShift) {
-      const openShift = await db.shifts.where('status').equals('open').first();
-      if (openShift) {
-        setCurrentShift(openShift);
+    if (!currentShift && currentUser) {
+      // find this employee's own open shift — each user has their own independent shift
+      const myShift = await db.shifts
+        .filter((s) => s.status === 'open' && s.userId === currentUser.id)
+        .first();
+      if (myShift) {
+        setCurrentShift(myShift);
       } else {
         setShowShiftModal(true);
       }
