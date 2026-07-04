@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { db } from '@/lib/local-db';
-import { formatCurrency } from '@/lib/store';
+import { formatCurrency, setCurrencyCode } from '@/lib/store';
 import { CUSTOMER_DISPLAY_CHANNEL, type CustomerDisplayMessage, type CustomerDisplayItem } from '@/lib/customer-display';
 import { Store, CheckCircle2, ShoppingCart } from 'lucide-react';
 
@@ -38,6 +38,7 @@ export default function CustomerDisplayPage() {
   useEffect(() => {
     db.settings.get(1).then((s) => {
       if (s) {
+        setCurrencyCode(s.currencyCode);
         setStoreName(s.storeName);
         setStoreLogo(s.storeLogo);
         setWelcomeMessage(s.displayWelcomeMessage || 'مرحباً بكم');
