@@ -466,8 +466,7 @@ export default function POS() {
   const portalChannelRef = useRef<BroadcastChannel | null>(null);
   const currentItemRef = useRef<import('@/lib/customer-display').CustomerDisplayItem | null>(null);
   const currentItemTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showCustomerFirstModal, setShowCustomerFirstModal] = useState(false);
-  const [pendingPaymentType, setPendingPaymentType] = useState<'credit' | 'mixed' | null>(null);
+  const [remainderType, setRemainderType] = useState<'credit' | 'wallet'>('credit');
 
   const broadcastCart = useCallback(() => {
     displayChannelRef.current?.postMessage({
@@ -697,6 +696,32 @@ export default function POS() {
         });
       }
 
+      // Mixed payment: remaining goes to credit or wallet based on remainderType
+      if (selectedCustomer && paymentType === 'mixed' && unpaidPortion > 0) {
+        if (remainderType === 'credit') {
+          await db.customers.update(selectedCustomer.id!, {
+            balance: selectedCustomer.balance + unpaidPortion,
+          });
+        } else {
+          // deduct from wallet
+          const walletBefore = selectedCustomer.walletBalance ?? 0;
+          const walletAfter = Math.max(walletBefore - unpaidPortion, 0);
+          await db.customers.update(selectedCustomer.id!, { walletBalance: walletAfter });
+          await db.walletTransactions.add({
+            customerId: selectedCustomer.id!,
+            customerName: selectedCustomer.name,
+            type: 'purchase',
+            amount: unpaidPortion,
+            balanceBefore: walletBefore,
+            balanceAfter: walletAfter,
+            saleId: saleId,
+            date: new Date(),
+            userId: currentUser.id!,
+            userName: currentUser.name,
+          });
+        }
+      }
+
       // Deduct wallet balance if wallet payment
       if (selectedCustomer && paymentType === 'wallet') {
         const walletBefore = selectedCustomer.walletBalance ?? 0;
@@ -796,6 +821,7 @@ export default function POS() {
       setAppliedVoucher(null);
       setVoucherInput('');
       setLoyaltyPointsInput('');
+      setRemainderType('credit');
       setHasDelivery(false);
       setDeliveryName('');
       setDeliveryPhone('');
@@ -1147,14 +1173,7 @@ export default function POS() {
 
             {/* Payment Button */}
             <button
-              onClick={() => {
-                if ((paymentType === 'credit' || paymentType === 'mixed') && !selectedCustomer) {
-                  setPendingPaymentType(paymentType);
-                  setShowCustomerFirstModal(true);
-                } else {
-                  setShowPaymentModal(true);
-                }
-              }}
+              onClick={() => setShowPaymentModal(true)}
               disabled={cart.length === 0}
               className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-emerald-500/25 active:scale-[0.98] flex items-center justify-center gap-2"
             >
@@ -1204,62 +1223,6 @@ export default function POS() {
                   <p className="text-sm text-slate-500">{customer.phone}</p>
                 </button>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Customer First Modal — required before credit/mixed payment */}
-      {showCustomerFirstModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                <User className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-800">اختر العميل أولاً</h3>
-                <p className="text-xs text-slate-500">
-                  {pendingPaymentType === 'credit' ? 'الدفع الآجل يستلزم تحديد عميل لإضافة المديونية' : 'الدفع المختلط يستلزم تحديد عميل'}
-                </p>
-              </div>
-              <button onClick={() => { setShowCustomerFirstModal(false); setPendingPaymentType(null); }}
-                className="mr-auto text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="overflow-y-auto space-y-1.5 flex-1 mt-3">
-              {customers.map((customer) => (
-                <button
-                  key={customer.id}
-                  onClick={() => {
-                    setSelectedCustomer(customer);
-                    setShowCustomerFirstModal(false);
-                    if (pendingPaymentType) setPaymentType(pendingPaymentType);
-                    setPendingPaymentType(null);
-                    setShowPaymentModal(true);
-                  }}
-                  className="w-full p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-right transition-all flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <p className="font-semibold text-slate-800">{customer.name}</p>
-                    <p className="text-xs text-slate-500">{customer.phone}</p>
-                  </div>
-                  <div className="text-left">
-                    {(customer.balance ?? 0) > 0 && (
-                      <span className="text-xs font-medium text-rose-500">مديونية {formatCurrency(customer.balance)}</span>
-                    )}
-                    {(customer.walletBalance ?? 0) > 0 && (
-                      <span className="text-xs font-medium text-blue-500 block">محفظة {formatCurrency(customer.walletBalance ?? 0)}</span>
-                    )}
-                  </div>
-                </button>
-              ))}
-              {customers.length === 0 && (
-                <div className="text-center py-8 text-slate-400 text-sm">
-                  لا يوجد عملاء — أضف عميلاً من قسم العملاء
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1407,6 +1370,7 @@ export default function POS() {
                 </div>
               )}
 
+              {/* Payment type buttons */}
               <div className="grid grid-cols-2 gap-2">
                 {(['cash', 'credit', 'mixed', 'wallet'] as const).map((type) => (
                   <button
@@ -1425,6 +1389,64 @@ export default function POS() {
                   </button>
                 ))}
               </div>
+
+              {/* Inline customer picker — shown when credit or mixed with no customer selected */}
+              {(paymentType === 'credit' || paymentType === 'mixed') && !selectedCustomer && (
+                <div className="border border-amber-200 rounded-xl bg-amber-50 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" />
+                    اختر العميل لإضافة {paymentType === 'credit' ? 'المديونية' : 'الباقي'}
+                  </p>
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {customers.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedCustomer(c)}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-white rounded-lg border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-right"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">{c.name}</p>
+                          {c.phone && <p className="text-xs text-slate-400">{c.phone}</p>}
+                        </div>
+                        <div className="text-left flex flex-col gap-0.5">
+                          {(c.balance ?? 0) > 0 && <span className="text-xs text-rose-500">مديونية {formatCurrency(c.balance)}</span>}
+                          {(c.walletBalance ?? 0) > 0 && <span className="text-xs text-blue-500">محفظة {formatCurrency(c.walletBalance ?? 0)}</span>}
+                        </div>
+                      </button>
+                    ))}
+                    {customers.length === 0 && <p className="text-xs text-slate-400 text-center py-2">لا يوجد عملاء</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Mixed payment: remainder destination (credit or wallet) */}
+              {paymentType === 'mixed' && selectedCustomer && (
+                <div className="space-y-1.5">
+                  <p className="text-sm font-medium text-slate-600">الباقي يُحوَّل إلى</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setRemainderType('credit')}
+                      className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        remainderType === 'credit' ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      📋 آجل (مديونية)
+                    </button>
+                    <button
+                      onClick={() => setRemainderType('wallet')}
+                      disabled={(selectedCustomer.walletBalance ?? 0) <= 0}
+                      className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        remainderType === 'wallet' ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        : (selectedCustomer.walletBalance ?? 0) <= 0 ? 'border-slate-100 text-slate-300 cursor-not-allowed'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      👛 محفظة ({formatCurrency(selectedCustomer.walletBalance ?? 0)})
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {paymentType === 'wallet' && selectedCustomer && (
                 <div className={`p-3 rounded-lg text-sm ${(selectedCustomer.walletBalance ?? 0) >= finalDue ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'}`}>
                   <div className="flex justify-between">
@@ -1443,7 +1465,9 @@ export default function POS() {
 
               {paymentType !== 'credit' && paymentType !== 'wallet' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">المبلغ المدفوع</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
+                    {paymentType === 'mixed' ? 'المبلغ النقدي المدفوع' : 'المبلغ المدفوع'}
+                  </label>
                   <input
                     type="number"
                     value={paidAmount}
@@ -1453,7 +1477,12 @@ export default function POS() {
                     min="0"
                     step="0.01"
                   />
-                  {parseFloat(paidAmount) > finalDue && (
+                  {paymentType === 'mixed' && parseFloat(paidAmount) > 0 && parseFloat(paidAmount) < finalDue && (
+                    <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5 mt-1.5">
+                      الباقي {formatCurrency(finalDue - parseFloat(paidAmount))} → {remainderType === 'credit' ? 'آجل على العميل' : 'من المحفظة'}
+                    </p>
+                  )}
+                  {paymentType === 'cash' && parseFloat(paidAmount) > finalDue && (
                     <p className="text-sm text-amber-600 mt-1">
                       الباقي: {formatCurrency(parseFloat(paidAmount) - finalDue)}
                     </p>
