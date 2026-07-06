@@ -11,6 +11,7 @@ import { useAppStore, formatCurrency } from '@/lib/store';
 import { printShiftSummary, googleFontLink } from '@/lib/print';
 import { sendInvoiceWhatsApp } from '@/lib/whatsapp-gateway';
 import { CUSTOMER_DISPLAY_CHANNEL, type CustomerDisplayMessage } from '@/lib/customer-display';
+import { CUSTOMER_PORTAL_CHANNEL, type CustomerPortalMessage } from '@/lib/customer-portal-channel';
 import {
   Search,
   Plus,
@@ -462,8 +463,11 @@ export default function POS() {
   const finalDue = Math.max(total - voucherAmount - loyaltyRedeemAmount, 0);
 
   const displayChannelRef = useRef<BroadcastChannel | null>(null);
+  const portalChannelRef = useRef<BroadcastChannel | null>(null);
   const currentItemRef = useRef<import('@/lib/customer-display').CustomerDisplayItem | null>(null);
   const currentItemTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showCustomerFirstModal, setShowCustomerFirstModal] = useState(false);
+  const [pendingPaymentType, setPendingPaymentType] = useState<'credit' | 'mixed' | null>(null);
 
   const broadcastCart = useCallback(() => {
     displayChannelRef.current?.postMessage({
@@ -487,7 +491,9 @@ export default function POS() {
   useEffect(() => {
     const channel = new BroadcastChannel(CUSTOMER_DISPLAY_CHANNEL);
     displayChannelRef.current = channel;
-    return () => channel.close();
+    const portalChannel = new BroadcastChannel(CUSTOMER_PORTAL_CHANNEL);
+    portalChannelRef.current = portalChannel;
+    return () => { channel.close(); portalChannel.close(); };
   }, []);
 
   useEffect(() => {
@@ -501,8 +507,22 @@ export default function POS() {
     broadcastCart();
   }, [broadcastCart]);
 
+  // Broadcast selected customer to customer portal
+  useEffect(() => {
+    if (!portalChannelRef.current) return;
+    if (selectedCustomer?.id) {
+      portalChannelRef.current.postMessage({ type: 'customer-active', customerId: selectedCustomer.id } satisfies CustomerPortalMessage);
+    } else {
+      portalChannelRef.current.postMessage({ type: 'clear' } satisfies CustomerPortalMessage);
+    }
+  }, [selectedCustomer]);
+
   const openCustomerDisplay = () => {
     window.open('/customer-display', 'customerDisplay', 'width=1000,height=700');
+  };
+
+  const openCustomerPortal = () => {
+    window.open('/customer-portal', 'customerPortal', 'width=800,height=900');
   };
 
   const processBarcode = useCallback(
@@ -584,6 +604,20 @@ export default function POS() {
         toast.error(`رصيد المحفظة غير كافٍ — الرصيد الحالي: ${formatCurrency(selectedCustomer.walletBalance ?? 0)}`);
         return;
       }
+    }
+
+    // Broadcast transaction info to customer portal
+    if (selectedCustomer) {
+      const creditAmt = paymentType === 'credit' ? finalDue : paymentType === 'mixed' ? Math.max(finalDue - (parseFloat(paidAmount) || 0), 0) : 0;
+      const walletAmt = paymentType === 'wallet' ? finalDue : 0;
+      portalChannelRef.current?.postMessage({
+        type: 'transaction-update',
+        total: finalDue,
+        cashPaid: cashPaid,
+        creditAmount: creditAmt,
+        walletAmount: walletAmt,
+        paymentType,
+      } satisfies CustomerPortalMessage);
     }
 
     const saleItems = cart.map((item) => ({
@@ -737,6 +771,20 @@ export default function POS() {
         paid: cashPaid,
         change: paymentType === 'cash' ? Math.max(cashPaid - finalDue, 0) : 0,
       } satisfies CustomerDisplayMessage);
+
+      // Broadcast to customer portal
+      if (selectedCustomer) {
+        const updatedCustomer = await db.customers.get(selectedCustomer.id!);
+        portalChannelRef.current?.postMessage({
+          type: 'sale-complete',
+          invoiceNumber: sale.invoiceNumber,
+          total: finalDue,
+          pointsEarned: sale.loyaltyPointsEarned ?? 0,
+          newBalance: updatedCustomer?.balance ?? 0,
+          newWallet: updatedCustomer?.walletBalance ?? 0,
+          newDebt: Math.max(updatedCustomer?.balance ?? 0, 0),
+        } satisfies CustomerPortalMessage);
+      }
 
       // Reset cart
       setCart([]);
@@ -920,6 +968,14 @@ export default function POS() {
                 <Monitor className="w-4 h-4" />
                 <span className="hidden sm:inline">شاشة الزبون</span>
               </button>
+              <button
+                onClick={openCustomerPortal}
+                title="بوابة العميل"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 border border-blue-200 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden sm:inline">بوابة العميل</span>
+              </button>
               {canCloseShift && (
                 <button
                   onClick={() => setShowCloseShiftModal(true)}
@@ -1091,7 +1147,14 @@ export default function POS() {
 
             {/* Payment Button */}
             <button
-              onClick={() => setShowPaymentModal(true)}
+              onClick={() => {
+                if ((paymentType === 'credit' || paymentType === 'mixed') && !selectedCustomer) {
+                  setPendingPaymentType(paymentType);
+                  setShowCustomerFirstModal(true);
+                } else {
+                  setShowPaymentModal(true);
+                }
+              }}
               disabled={cart.length === 0}
               className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-emerald-500/25 active:scale-[0.98] flex items-center justify-center gap-2"
             >
@@ -1141,6 +1204,62 @@ export default function POS() {
                   <p className="text-sm text-slate-500">{customer.phone}</p>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer First Modal — required before credit/mixed payment */}
+      {showCustomerFirstModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                <User className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">اختر العميل أولاً</h3>
+                <p className="text-xs text-slate-500">
+                  {pendingPaymentType === 'credit' ? 'الدفع الآجل يستلزم تحديد عميل لإضافة المديونية' : 'الدفع المختلط يستلزم تحديد عميل'}
+                </p>
+              </div>
+              <button onClick={() => { setShowCustomerFirstModal(false); setPendingPaymentType(null); }}
+                className="mr-auto text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto space-y-1.5 flex-1 mt-3">
+              {customers.map((customer) => (
+                <button
+                  key={customer.id}
+                  onClick={() => {
+                    setSelectedCustomer(customer);
+                    setShowCustomerFirstModal(false);
+                    if (pendingPaymentType) setPaymentType(pendingPaymentType);
+                    setPendingPaymentType(null);
+                    setShowPaymentModal(true);
+                  }}
+                  className="w-full p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-right transition-all flex items-center justify-between gap-3"
+                >
+                  <div>
+                    <p className="font-semibold text-slate-800">{customer.name}</p>
+                    <p className="text-xs text-slate-500">{customer.phone}</p>
+                  </div>
+                  <div className="text-left">
+                    {(customer.balance ?? 0) > 0 && (
+                      <span className="text-xs font-medium text-rose-500">مديونية {formatCurrency(customer.balance)}</span>
+                    )}
+                    {(customer.walletBalance ?? 0) > 0 && (
+                      <span className="text-xs font-medium text-blue-500 block">محفظة {formatCurrency(customer.walletBalance ?? 0)}</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+              {customers.length === 0 && (
+                <div className="text-center py-8 text-slate-400 text-sm">
+                  لا يوجد عملاء — أضف عميلاً من قسم العملاء
+                </div>
+              )}
             </div>
           </div>
         </div>
