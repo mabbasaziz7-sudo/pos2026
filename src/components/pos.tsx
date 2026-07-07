@@ -12,6 +12,7 @@ import { printShiftSummary, googleFontLink } from '@/lib/print';
 import { sendInvoiceWhatsApp } from '@/lib/whatsapp-gateway';
 import { CUSTOMER_DISPLAY_CHANNEL, type CustomerDisplayMessage } from '@/lib/customer-display';
 import { CUSTOMER_PORTAL_CHANNEL, type CustomerPortalMessage } from '@/lib/customer-portal-channel';
+import { PRICE_CHECK_CHANNEL, type PriceCheckMessage } from '@/lib/price-check-channel';
 import {
   Search,
   Plus,
@@ -464,6 +465,7 @@ export default function POS() {
 
   const displayChannelRef = useRef<BroadcastChannel | null>(null);
   const portalChannelRef = useRef<BroadcastChannel | null>(null);
+  const priceCheckChannelRef = useRef<BroadcastChannel | null>(null);
   const currentItemRef = useRef<import('@/lib/customer-display').CustomerDisplayItem | null>(null);
   const currentItemTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [remainderType, setRemainderType] = useState<'credit' | 'wallet'>('credit');
@@ -492,7 +494,9 @@ export default function POS() {
     displayChannelRef.current = channel;
     const portalChannel = new BroadcastChannel(CUSTOMER_PORTAL_CHANNEL);
     portalChannelRef.current = portalChannel;
-    return () => { channel.close(); portalChannel.close(); };
+    const priceCheckChannel = new BroadcastChannel(PRICE_CHECK_CHANNEL);
+    priceCheckChannelRef.current = priceCheckChannel;
+    return () => { channel.close(); portalChannel.close(); priceCheckChannel.close(); };
   }, []);
 
   useEffect(() => {
@@ -522,6 +526,10 @@ export default function POS() {
 
   const openCustomerPortal = () => {
     window.open('/customer-portal', 'customerPortal', 'width=800,height=900');
+  };
+
+  const openPriceCheck = () => {
+    window.open('/price-check', 'priceCheck', 'width=900,height=700');
   };
 
   const processBarcode = useCallback(
@@ -555,10 +563,13 @@ export default function POS() {
           currentItemRef.current = null;
           broadcastCart();
         }, 3500);
+        // Broadcast to price check screen
+        priceCheckChannelRef.current?.postMessage({ type: 'product-found', productId: product.id! } satisfies PriceCheckMessage);
         addToCart(product);
         setBarcodeInput('');
         playScanBeep('success');
       } else {
+        priceCheckChannelRef.current?.postMessage({ type: 'not-found', query: trimmed } satisfies PriceCheckMessage);
         playScanBeep('error');
         toast.error('الباركود غير موجود');
       }
@@ -1001,6 +1012,14 @@ export default function POS() {
               >
                 <User className="w-4 h-4" />
                 <span className="hidden sm:inline">بوابة العميل</span>
+              </button>
+              <button
+                onClick={openPriceCheck}
+                title="فحص السعر"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 border border-violet-200 rounded-lg text-violet-600 hover:bg-violet-50 transition-colors"
+              >
+                <Barcode className="w-4 h-4" />
+                <span className="hidden sm:inline">فحص السعر</span>
               </button>
               {canCloseShift && (
                 <button
