@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, type Product, type Category } from '@/lib/local-db';
+import { db, type Product, type Category, recordStockMovement } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatNumber, formatDate } from '@/lib/store';
 import { openPrintWindow } from '@/lib/print';
 import {
@@ -19,17 +19,21 @@ import {
 import toast from 'react-hot-toast';
 
 export default function Inventory() {
-  const { settings } = useAppStore();
+  const { settings, currentUser } = useAppStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
-  const [subTab, setSubTab] = useState<'stock' | 'report'>('stock');
+  const [subTab, setSubTab] = useState<'stock' | 'report' | 'count'>('stock');
   const [adjustModal, setAdjustModal] = useState<Product | null>(null);
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
+
+  // الجرد التفاعلي
+  const [countValues, setCountValues] = useState<Record<number, string>>({});
+  const [savingCount, setSavingCount] = useState(false);
 
   // بيانات تقرير الصنف/الفئة
   const [saleItems, setSaleItems] = useState<{productId:number;productName:string;quantity:number;price:number;cost:number;total:number;date:Date}[]>([]);
@@ -233,13 +237,55 @@ export default function Inventory() {
   };
 
   const adjustStock = async () => {
-    if (!adjustModal || !adjustQty) return;
-    const newStock = adjustModal.stock + parseInt(adjustQty);
+    if (!adjustModal || !adjustQty || !currentUser) return;
+    const delta = parseInt(adjustQty);
+    const newStock = adjustModal.stock + delta;
     if (newStock < 0) { toast.error('المخزون لا يمكن أن يكون سالباً'); return; }
-    await db.products.update(adjustModal.id!, { stock: newStock, updatedAt: new Date() });
+    await recordStockMovement({
+      productId: adjustModal.id!,
+      productName: adjustModal.name,
+      stockBefore: adjustModal.stock,
+      quantityDelta: delta,
+      type: 'adjustment',
+      userId: currentUser.id!,
+      userName: currentUser.name,
+      reason: adjustReason.trim() || undefined,
+    });
     toast.success('تم تعديل المخزون');
     setAdjustModal(null); setAdjustQty(''); setAdjustReason('');
     loadData();
+  };
+
+  // يحفظ فروقات الجرد التفاعلي: لكل صنف أُدخل له عدد فعلي مختلف عن مخزون النظام،
+  // يُنشئ حركة تسوية تلقائية بالفرق (بدل تعديل يدوي لاحق لكل صنف على حدة)
+  const saveCount = async () => {
+    if (!currentUser) return;
+    const changes = Object.entries(countValues)
+      .map(([id, val]) => ({ product: products.find(p => p.id === Number(id)), actual: parseFloat(val) }))
+      .filter((c): c is { product: Product; actual: number } => !!c.product && !isNaN(c.actual) && c.actual !== c.product.stock);
+
+    if (changes.length === 0) { toast.error('لا توجد فروقات لحفظها'); return; }
+
+    setSavingCount(true);
+    try {
+      for (const { product, actual } of changes) {
+        await recordStockMovement({
+          productId: product.id!,
+          productName: product.name,
+          stockBefore: product.stock,
+          quantityDelta: actual - product.stock,
+          type: 'adjustment',
+          userId: currentUser.id!,
+          userName: currentUser.name,
+          reason: 'جرد دوري',
+        });
+      }
+      toast.success(`تم حفظ ${changes.length} تسوية جرد`);
+      setCountValues({});
+      loadData();
+    } finally {
+      setSavingCount(false);
+    }
   };
 
   // إحصائيات تقرير الصنف/الفئة
@@ -289,7 +335,60 @@ export default function Inventory() {
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subTab==='report' ? 'bg-emerald-500 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
           <BarChart3 className="w-4 h-4" /> تقرير الصنف/الفئة
         </button>
+        <button onClick={() => setSubTab('count')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subTab==='count' ? 'bg-emerald-500 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+          <PackageCheck className="w-4 h-4" /> جرد تفاعلي
+        </button>
       </div>
+
+      {/* ===== الجرد التفاعلي: إدخال العدد الفعلي وحفظ الفروقات دفعة واحدة ===== */}
+      {subTab === 'count' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+            <span className="font-medium text-slate-700 text-sm">أدخل العدد الفعلي لكل صنف بعد الجرد اليدوي، ثم احفظ الفروقات</span>
+            <button onClick={saveCount} disabled={savingCount}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm transition-colors">
+              حفظ فروقات الجرد
+            </button>
+          </div>
+          <div className="overflow-x-auto max-h-[65vh]">
+            <table className="w-full">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600 sticky top-0">
+                <tr>
+                  <th className="px-4 py-3 text-right">المنتج</th>
+                  <th className="px-4 py-3 text-center">مخزون النظام</th>
+                  <th className="px-4 py-3 text-center">العدد الفعلي</th>
+                  <th className="px-4 py-3 text-center">الفرق</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {products.map((p) => {
+                  const val = countValues[p.id!];
+                  const actual = val !== undefined ? parseFloat(val) : NaN;
+                  const diff = !isNaN(actual) ? actual - p.stock : null;
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-sm font-medium text-slate-800">{p.name}</td>
+                      <td className="px-4 py-3 text-center text-sm text-slate-600">{p.stock} {p.unit}</td>
+                      <td className="px-4 py-3 text-center">
+                        <input type="number" value={val ?? ''} placeholder={String(p.stock)}
+                          onChange={(e) => setCountValues({ ...countValues, [p.id!]: e.target.value })}
+                          className="w-24 text-center px-2 py-1 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm font-bold">
+                        {diff === null ? <span className="text-slate-300">—</span>
+                          : diff === 0 ? <span className="text-slate-400">0</span>
+                          : diff > 0 ? <span className="text-emerald-600">+{diff}</span>
+                          : <span className="text-rose-600">{diff}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ===== جرد المخزون ===== */}
       {subTab === 'stock' && (

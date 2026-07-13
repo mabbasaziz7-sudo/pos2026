@@ -52,6 +52,15 @@ class PosOfflineDB extends Dexie {
       expenseCategories: 'id',
       expenses:          'id',
     });
+    // نسخة 2: إضافة جداول المستودعات، حركة المخزون، مرتجع الشراء، سلف الموظفين، سجل التدقيق
+    this.version(2).stores({
+      warehouses:            'id',
+      productWarehouseStock: 'id, productId, warehouseId',
+      stockMovements:        'id, productId, date',
+      purchaseReturns:       'id',
+      employeeAdvances:      'id, employeeId',
+      auditLogs:             'id, userId, date',
+    });
   }
 }
 
@@ -72,4 +81,6 @@ export const CACHEABLE_TABLES = new Set([
   'returns','parkedSales','deliveries','priceTiers','employees','orders',
   'loyaltyTiers','customerGroups','whatsappLogs','walletTransactions',
   'financialVouchers','salaryPayments','expenseCategories','expenses',
+  'warehouses','productWarehouseStock','stockMovements','purchaseReturns',
+  'employeeAdvances','auditLogs',
 ]);

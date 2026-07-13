@@ -1,3 +1,21 @@
+export type PaymentType = 'cash' | 'card' | 'credit' | 'mixed' | 'wallet';
+
+export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
+  cash: 'نقدي',
+  card: 'بطاقة',
+  credit: 'آجل',
+  mixed: 'مختلط',
+  wallet: 'محفظة',
+};
+
+export const PAYMENT_TYPE_BADGE_CLASSES: Record<PaymentType, string> = {
+  cash: 'bg-emerald-100 text-emerald-700',
+  card: 'bg-indigo-100 text-indigo-700',
+  credit: 'bg-amber-100 text-amber-700',
+  mixed: 'bg-blue-100 text-blue-700',
+  wallet: 'bg-purple-100 text-purple-700',
+};
+
 export interface Product {
   id?: number;
   name: string;
@@ -82,6 +100,7 @@ export interface User {
   permissions: string[];
   isActive: boolean;
   createdAt: Date;
+  lastLoginAt?: Date;
 }
 
 export interface Shift {
@@ -96,6 +115,7 @@ export interface Shift {
   difference?: number;
   totalSales: number;
   totalCashSales: number;
+  totalCardSales: number;
   totalCreditSales: number;
   totalReturns: number;
   status: 'open' | 'closed';
@@ -110,6 +130,7 @@ export interface Sale {
   shiftId: number;
   userId: number;
   userName: string;
+  warehouseId?: number;
   items: SaleItem[];
   subtotal: number;
   discount: number;
@@ -117,7 +138,7 @@ export interface Sale {
   total: number;
   paid: number;
   remaining: number;
-  paymentType: 'cash' | 'credit' | 'mixed' | 'wallet';
+  paymentType: PaymentType;
   status: 'completed' | 'pending' | 'cancelled';
   date: Date;
   notes?: string;
@@ -356,7 +377,7 @@ export interface ParkedSale {
   voucherCode?: string;
   voucherAmount: number;
   loyaltyPointsRedeemed: number;
-  paymentType: 'cash' | 'credit' | 'mixed' | 'wallet';
+  paymentType: PaymentType;
   notes?: string;
   createdAt: Date;
 }
@@ -389,6 +410,7 @@ export interface PriceTier {
 export interface Employee {
   id?: number;
   name: string;
+  userId?: number;
   phone: string;
   email?: string;
   position: string;
@@ -440,6 +462,95 @@ export interface LoyaltyTier {
   createdAt: Date;
 }
 
+// ===== المستودعات وحركة المخزون =====
+export interface Warehouse {
+  id?: number;
+  name: string;
+  address?: string;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export interface ProductWarehouseStock {
+  id?: number;
+  productId: number;
+  warehouseId: number;
+  stock: number;
+  minStock: number;
+  updatedAt: Date;
+}
+
+export type StockMovementType =
+  | 'sale' | 'return' | 'purchase' | 'purchase_return'
+  | 'adjustment' | 'transfer_in' | 'transfer_out';
+
+export interface StockMovement {
+  id?: number;
+  productId: number;
+  productName: string;
+  warehouseId?: number;
+  type: StockMovementType;
+  quantityDelta: number;
+  stockBefore: number;
+  stockAfter: number;
+  refType?: string;
+  refId?: number;
+  reason?: string;
+  userId: number;
+  userName: string;
+  date: Date;
+}
+
+// ===== مرتجع الشراء =====
+export interface PurchaseReturnItem {
+  productId: number;
+  productName: string;
+  quantity: number;
+  price: number;
+  total: number;
+}
+
+export interface PurchaseReturn {
+  id?: number;
+  purchaseReturnNumber: string;
+  originalInvoiceId: number;
+  originalInvoiceNumber: string;
+  supplierId: number;
+  supplierName: string;
+  items: PurchaseReturnItem[];
+  refundAmount: number;
+  reason?: string;
+  userId: number;
+  userName: string;
+  date: Date;
+}
+
+// ===== سلف الموظفين =====
+export interface EmployeeAdvance {
+  id?: number;
+  employeeId: number;
+  employeeName: string;
+  amount: number;
+  remainingBalance: number;
+  reason?: string;
+  status: 'active' | 'settled';
+  userId: number;
+  userName: string;
+  date: Date;
+}
+
+// ===== سجل التدقيق =====
+export interface AuditLog {
+  id?: number;
+  userId: number;
+  userName: string;
+  action: string;
+  tableName?: string;
+  recordId?: number;
+  details?: Record<string, unknown>;
+  date: Date;
+}
+
 // ===== طبقة توافق مع واجهة Dexie القديمة، مدعومة بـ API حقيقي + قاعدة بيانات مشتركة =====
 // كل الشاشات في النظام تستورد `db` من هذا الملف وتستخدم نفس الاستدعاءات التي كانت تُستخدم
 // مع IndexedDB (toArray, add, update, where().equals()...) — لذا أبقينا الواجهة كما هي
@@ -450,6 +561,7 @@ import { getOfflineDb, CACHEABLE_TABLES, type SyncOp } from './offline-db';
 
 const DATE_FIELDS = new Set([
   'date', 'createdAt', 'updatedAt', 'startTime', 'endTime', 'sentAt', 'expiryDate', 'startDate', 'endDate',
+  'lastLoginAt', 'paidAt',
 ]);
 
 function reviveDates<T>(obj: T): T {
@@ -938,6 +1050,12 @@ class ApiDatabase {
   salaryPayments = new ApiTable<SalaryPayment>('salaryPayments');
   expenseCategories = new ApiTable<ExpenseCategory>('expenseCategories');
   expenses = new ApiTable<Expense>('expenses');
+  warehouses = new ApiTable<Warehouse>('warehouses');
+  productWarehouseStock = new ApiTable<ProductWarehouseStock>('productWarehouseStock');
+  stockMovements = new ApiTable<StockMovement>('stockMovements');
+  purchaseReturns = new ApiTable<PurchaseReturn>('purchaseReturns');
+  employeeAdvances = new ApiTable<EmployeeAdvance>('employeeAdvances');
+  auditLogs = new ApiTable<AuditLog>('auditLogs');
 }
 
 export const db = new ApiDatabase();
@@ -960,6 +1078,61 @@ export function generateReturnNumber(): string {
   const timestamp = now.getTime().toString().slice(-8);
   const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
   return `${prefix}-${timestamp}-${random}`;
+}
+
+// يحدّث مخزون المنتج (الإجمالي) ويسجّل حركة في stockMovements في آن واحد —
+// نقطة مركزية واحدة تُستدعى من كل مكان يُغيَّر فيه المخزون (بيع، شراء، مرتجع، تسوية، تحويل).
+export async function recordStockMovement(params: {
+  productId: number;
+  productName: string;
+  stockBefore: number;
+  quantityDelta: number; // موجب = زيادة، سالب = نقص
+  type: StockMovementType;
+  userId: number;
+  userName: string;
+  warehouseId?: number;
+  refType?: string;
+  refId?: number;
+  reason?: string;
+}): Promise<number> {
+  const stockAfter = params.stockBefore + params.quantityDelta;
+  await db.products.update(params.productId, { stock: stockAfter, updatedAt: new Date() });
+  await db.stockMovements.add({
+    productId: params.productId,
+    productName: params.productName,
+    warehouseId: params.warehouseId,
+    type: params.type,
+    quantityDelta: params.quantityDelta,
+    stockBefore: params.stockBefore,
+    stockAfter,
+    refType: params.refType,
+    refId: params.refId,
+    reason: params.reason,
+    userId: params.userId,
+    userName: params.userName,
+    date: new Date(),
+  });
+  return stockAfter;
+}
+
+export function generatePurchaseReturnNumber(): string {
+  const now = new Date();
+  const prefix = 'PRET';
+  const timestamp = now.getTime().toString().slice(-8);
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `${prefix}-${timestamp}-${random}`;
+}
+
+// يسجّل حدثًا في سجل التدقيق لعملية حساسة (إدارة مستخدمين، تعديل مخزون يدوي، سندات مالية...)
+export async function logAudit(
+  userId: number,
+  userName: string,
+  action: string,
+  tableName?: string,
+  recordId?: number,
+  details?: Record<string, unknown>
+): Promise<void> {
+  await db.auditLogs.add({ userId, userName, action, tableName, recordId, details, date: new Date() });
 }
 
 export function generateBarcode(): string {

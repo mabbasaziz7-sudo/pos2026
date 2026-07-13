@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, type Shift, type Sale } from '@/lib/local-db';
+import { db, type Shift, type Sale, PAYMENT_TYPE_LABELS, PAYMENT_TYPE_BADGE_CLASSES } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatDate } from '@/lib/store';
 import { printShiftSummary as printShiftSummaryReport } from '@/lib/print';
 import {
@@ -110,7 +110,7 @@ export default function Shifts() {
                     <span className="text-lg font-bold opacity-60">#{shift.id}</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="grid grid-cols-3 gap-2 mb-4">
                     <div className="bg-white/10 rounded-lg p-2.5">
                       <p className="text-white/70 text-xs mb-0.5">إجمالي المبيعات</p>
                       <p className="font-bold text-sm">{formatCurrency(shift.totalSales)}</p>
@@ -118,6 +118,10 @@ export default function Shifts() {
                     <div className="bg-white/10 rounded-lg p-2.5">
                       <p className="text-white/70 text-xs mb-0.5">نقدي</p>
                       <p className="font-bold text-sm">{formatCurrency(shift.totalCashSales)}</p>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-2.5">
+                      <p className="text-white/70 text-xs mb-0.5">بطاقة</p>
+                      <p className="font-bold text-sm">{formatCurrency(shift.totalCardSales ?? 0)}</p>
                     </div>
                     <div className="bg-white/10 rounded-lg p-2.5">
                       <p className="text-white/70 text-xs mb-0.5">آجل</p>
@@ -341,11 +345,8 @@ export default function Shifts() {
                         <td className="px-3 py-2">{sale.customerName || 'نقدي'}</td>
                         <td className="px-3 py-2 font-medium text-emerald-600">{formatCurrency(sale.total)}</td>
                         <td className="px-3 py-2">
-                          <span className={`px-2 py-0.5 rounded-full text-xs ${
-                            sale.paymentType === 'cash' ? 'bg-emerald-100 text-emerald-700'
-                            : sale.paymentType === 'credit' ? 'bg-amber-100 text-amber-700'
-                            : 'bg-blue-100 text-blue-700'}`}>
-                            {sale.paymentType === 'cash' ? 'نقدي' : sale.paymentType === 'credit' ? 'آجل' : 'مختلط'}
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${PAYMENT_TYPE_BADGE_CLASSES[sale.paymentType]}`}>
+                            {PAYMENT_TYPE_LABELS[sale.paymentType]}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-slate-500">{formatDate(sale.date)}</td>

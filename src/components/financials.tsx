@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { db, type FinancialVoucher, type SalaryPayment, type Employee, type Customer, type Supplier, type Expense, type ExpenseCategory } from '@/lib/local-db';
+import { db, type FinancialVoucher, type SalaryPayment, type Employee, type Customer, type Supplier, type Expense, type ExpenseCategory, type EmployeeAdvance, logAudit } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatDate } from '@/lib/store';
 import { printFinancialVoucher, printSalarySlip } from '@/lib/print-financials';
 import {
@@ -103,7 +103,7 @@ function VouchersPanel() {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) { toast.error('أدخل المبلغ'); return; }
 
-    await db.financialVouchers.add({
+    const voucherId = await db.financialVouchers.add({
       voucherNumber: form.voucherNumber,
       type: form.type,
       date: new Date(form.date),
@@ -120,6 +120,7 @@ function VouchersPanel() {
       userName: currentUser?.username ?? '',
       createdAt: new Date(),
     });
+    if (currentUser) await logAudit(currentUser.id!, currentUser.name, `create_voucher_${form.type}`, 'financialVouchers', voucherId, { amount, partyName: form.partyName });
     toast.success('تم حفظ السند');
     setShowModal(false);
     load();
@@ -348,6 +349,10 @@ function PayrollPanel() {
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [advances, setAdvances] = useState<EmployeeAdvance[]>([]);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceForm, setAdvanceForm] = useState({ employeeId: '', amount: '', reason: '' });
+  const [repayAmount, setRepayAmount] = useState<Record<number, string>>({});
 
   const emptyForm = {
     employeeId: '', month: String(new Date().getMonth() + 1),
@@ -359,13 +364,18 @@ function PayrollPanel() {
 
   const selectedEmp = employees.find(e => e.id === parseInt(form.employeeId));
 
+  const outstandingAdvance = (employeeId: number) =>
+    advances.filter(a => a.employeeId === employeeId && a.status === 'active').reduce((s, a) => s + a.remainingBalance, 0);
+
   const load = useCallback(async () => {
-    const [ps, es] = await Promise.all([
+    const [ps, es, adv] = await Promise.all([
       db.salaryPayments.orderBy('createdAt').reverse().toArray(),
       db.employees.filter(e => e.isActive).toArray(),
+      db.employeeAdvances.orderBy('date').reverse().toArray(),
     ]);
     setPayments(ps);
     setEmployees(es);
+    setAdvances(adv);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -378,6 +388,11 @@ function PayrollPanel() {
   const openModal = () => { setForm(emptyForm); setShowModal(true); };
 
   const f = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const selectEmployee = (employeeId: string) => {
+    const outstanding = outstandingAdvance(parseInt(employeeId));
+    setForm(prev => ({ ...prev, employeeId, deductions: outstanding > 0 ? String(outstanding) : prev.deductions }));
+  };
 
   const basicSalary = selectedEmp?.salary ?? 0;
   const allowances = parseFloat(form.allowances) || 0;
@@ -422,10 +437,11 @@ function PayrollPanel() {
     for (const emp of employees) {
       const exists = payments.find(p => p.employeeId === emp.id! && p.month === month && p.year === year);
       if (!exists) {
+        const deduction = outstandingAdvance(emp.id!);
         await db.salaryPayments.add({
           voucherNumber: genSalaryNum(month, year),
           employeeId: emp.id!, employeeName: emp.name, employeePosition: emp.position,
-          month, year, basicSalary: emp.salary, allowances: 0, deductions: 0, netSalary: emp.salary,
+          month, year, basicSalary: emp.salary, allowances: 0, deductions: deduction, netSalary: emp.salary - deduction,
           status: 'pending', paymentMethod: 'cash',
           userId: currentUser?.id ?? 0, userName: currentUser?.username ?? '',
           createdAt: new Date(),
@@ -439,9 +455,39 @@ function PayrollPanel() {
 
   const markPaid = async (p: SalaryPayment) => {
     await db.salaryPayments.update(p.id!, { status: 'paid', paidAt: new Date() });
+    if (currentUser) await logAudit(currentUser.id!, currentUser.name, 'pay_salary', 'salaryPayments', p.id, { employeeName: p.employeeName, netSalary: p.netSalary });
     toast.success('تم تسجيل صرف الراتب');
     load();
   };
+
+  const addAdvance = async () => {
+    if (!advanceForm.employeeId || !currentUser) { toast.error('اختر موظفاً'); return; }
+    const amount = parseFloat(advanceForm.amount);
+    if (!amount || amount <= 0) { toast.error('أدخل مبلغاً صحيحاً'); return; }
+    const emp = employees.find(e => e.id === parseInt(advanceForm.employeeId));
+    if (!emp) return;
+    await db.employeeAdvances.add({
+      employeeId: emp.id!, employeeName: emp.name, amount, remainingBalance: amount,
+      reason: advanceForm.reason.trim() || undefined, status: 'active',
+      userId: currentUser.id!, userName: currentUser.name, date: new Date(),
+    });
+    toast.success('تم تسجيل السلفة');
+    setShowAdvanceModal(false);
+    setAdvanceForm({ employeeId: '', amount: '', reason: '' });
+    load();
+  };
+
+  const repayAdvance = async (adv: EmployeeAdvance) => {
+    const amount = parseFloat(repayAmount[adv.id!] || '');
+    if (!amount || amount <= 0 || amount > adv.remainingBalance) { toast.error('أدخل مبلغ سداد صحيح'); return; }
+    const remaining = adv.remainingBalance - amount;
+    await db.employeeAdvances.update(adv.id!, { remainingBalance: remaining, status: remaining <= 0 ? 'settled' : 'active' });
+    toast.success('تم تسجيل السداد');
+    setRepayAmount(prev => ({ ...prev, [adv.id!]: '' }));
+    load();
+  };
+
+  const activeAdvances = advances.filter(a => a.status === 'active');
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
@@ -470,6 +516,37 @@ function PayrollPanel() {
             <Plus className="w-4 h-4" /> إضافة راتب
           </button>
         </div>
+      </div>
+
+      {/* سلف الموظفين */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-800 text-sm">سلف الموظفين</h3>
+          <button onClick={() => setShowAdvanceModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-medium">
+            <Plus className="w-3.5 h-3.5" /> سلفة جديدة
+          </button>
+        </div>
+        {activeAdvances.length === 0 ? (
+          <p className="text-xs text-slate-400">لا توجد سلف قائمة</p>
+        ) : (
+          <div className="space-y-2">
+            {activeAdvances.map(a => (
+              <div key={a.id} className="flex items-center justify-between gap-2 p-2.5 bg-amber-50 border border-amber-100 rounded-lg text-sm flex-wrap">
+                <div>
+                  <p className="font-medium text-slate-700">{a.employeeName}</p>
+                  <p className="text-xs text-slate-500">المتبقي: <span className="font-bold text-amber-700">{formatCurrency(a.remainingBalance)}</span> من {formatCurrency(a.amount)}{a.reason ? ` — ${a.reason}` : ''}</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input type="number" placeholder="سداد" value={repayAmount[a.id!] || ''}
+                    onChange={e => setRepayAmount(prev => ({ ...prev, [a.id!]: e.target.value }))}
+                    className="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
+                  <button onClick={() => repayAdvance(a)} className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs">تسجيل سداد</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* summary */}
@@ -557,7 +634,7 @@ function PayrollPanel() {
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">الموظف *</label>
-                <select value={form.employeeId} onChange={e => f('employeeId', e.target.value)}
+                <select value={form.employeeId} onChange={e => selectEmployee(e.target.value)}
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
                   <option value="">-- اختر الموظف --</option>
                   {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
@@ -566,6 +643,11 @@ function PayrollPanel() {
               {selectedEmp && (
                 <div className="p-3 bg-emerald-50 rounded-lg text-sm">
                   الراتب الأساسي: <span className="font-bold text-emerald-700">{formatCurrency(selectedEmp.salary)}</span>
+                </div>
+              )}
+              {selectedEmp && outstandingAdvance(selectedEmp.id!) > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                  لهذا الموظف سلفة قائمة بقيمة {formatCurrency(outstandingAdvance(selectedEmp.id!))} — تم اقتراحها كخصم تلقائي (قابلة للتعديل).
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
@@ -623,6 +705,44 @@ function PayrollPanel() {
                   <Check className="w-4 h-4" /> حفظ
                 </button>
                 <button onClick={() => setShowModal(false)} className="px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50">إلغاء</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New advance modal */}
+      {showAdvanceModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-slate-800">سلفة جديدة</h3>
+              <button onClick={() => setShowAdvanceModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">الموظف *</label>
+                <select value={advanceForm.employeeId} onChange={e => setAdvanceForm(prev => ({ ...prev, employeeId: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="">-- اختر الموظف --</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">المبلغ *</label>
+                <input type="number" value={advanceForm.amount} onChange={e => setAdvanceForm(prev => ({ ...prev, amount: e.target.value }))} min="0" step="0.01"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">سبب السلفة</label>
+                <textarea value={advanceForm.reason} onChange={e => setAdvanceForm(prev => ({ ...prev, reason: e.target.value }))} rows={2}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={addAdvance} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg flex items-center justify-center gap-2">
+                  <Check className="w-4 h-4" /> حفظ
+                </button>
+                <button onClick={() => setShowAdvanceModal(false)} className="px-4 py-2.5 border border-slate-200 rounded-lg hover:bg-slate-50">إلغاء</button>
               </div>
             </div>
           </div>

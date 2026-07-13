@@ -1,4 +1,5 @@
 import type { Shift, Sale, Settings } from './local-db';
+import { PAYMENT_TYPE_LABELS } from './local-db';
 import { formatCurrency, formatDate } from './store';
 
 export function googleFontLink(font: string): string {
@@ -63,7 +64,7 @@ export function printShiftSummary(shift: Shift, sales: Sale[], settings: Setting
       <td>${sale.invoiceNumber}</td>
       <td>${sale.customerName || 'نقدي'}</td>
       <td>${formatCurrency(sale.total)}</td>
-      <td>${sale.paymentType === 'cash' ? 'نقدي' : sale.paymentType === 'credit' ? 'آجل' : 'مختلط'}</td>
+      <td>${PAYMENT_TYPE_LABELS[sale.paymentType]}</td>
       <td>${formatDate(sale.date)}</td>
     </tr>`).join('');
 
@@ -151,7 +152,7 @@ export function printInvoice(sale: Sale, settings: Settings | null) {
     ${showDiscounts && sale.voucherAmount ? `<div class="stats-row"><div><p class="label">قسيمة (${sale.voucherCode})</p><p class="value">-${formatCurrency(sale.voucherAmount)}</p></div></div>` : ''}
     ${showDiscounts && sale.loyaltyDiscount ? `<div class="stats-row"><div><p class="label">نقاط ولاء</p><p class="value">-${formatCurrency(sale.loyaltyDiscount)}</p></div></div>` : ''}
     <p class="grand-total">الإجمالي: ${formatCurrency(sale.total)}</p>
-    ${showPaymentMethod ? `<p class="receipt-row"><span>طريقة الدفع:</span><span>${sale.paymentType === 'cash' ? 'نقدي' : sale.paymentType === 'credit' ? 'آجل' : 'مختلط'}</span></p>` : ''}
+    ${showPaymentMethod ? `<p class="receipt-row"><span>طريقة الدفع:</span><span>${PAYMENT_TYPE_LABELS[sale.paymentType]}</span></p>` : ''}
     ${showRemaining && sale.remaining > 0 ? `<p class="receipt-row"><span>المتبقي:</span><strong>${formatCurrency(sale.remaining)}</strong></p>` : ''}
     ${settings?.receiptFooter ? `<p class="print-footer">${settings.receiptFooter}</p>` : ''}
     ${barcodeScript}

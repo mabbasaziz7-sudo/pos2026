@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 // ssr: false ضروري لأن html5-qrcode يستخدم واجهات المتصفح (camera, MediaDevices)
 // التي لا تتوفر في Node.js أثناء بناء Next.js على الخادم.
 const CameraScanner = dynamic(() => import('./camera-scanner'), { ssr: false });
-import { db, type Product, type Sale, type Customer, type Offer, type Coupon, type Voucher, type ParkedSale, type PriceTier, generateInvoiceNumber, decodeScaleBarcode } from '@/lib/local-db';
+import { db, type Product, type Sale, type Customer, type Offer, type Coupon, type Voucher, type ParkedSale, type PriceTier, type PaymentType, PAYMENT_TYPE_LABELS, generateInvoiceNumber, decodeScaleBarcode, recordStockMovement } from '@/lib/local-db';
 import { useAppStore, formatCurrency } from '@/lib/store';
 import { printShiftSummary, googleFontLink } from '@/lib/print';
 import { sendInvoiceWhatsApp } from '@/lib/whatsapp-gateway';
@@ -63,7 +63,7 @@ export default function POS() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentType, setPaymentType] = useState<'cash' | 'credit' | 'mixed' | 'wallet'>('cash');
+  const [paymentType, setPaymentType] = useState<PaymentType>('cash');
   const [paidAmount, setPaidAmount] = useState('');
   const [saleNotes, setSaleNotes] = useState('');
   const [showShiftModal, setShowShiftModal] = useState(false);
@@ -96,6 +96,8 @@ export default function POS() {
   const [deliveryNotes, setDeliveryNotes] = useState('');
   // ===== عروض الجملة (تسعيرة متدرجة) =====
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
+  // المستودع الافتراضي للبيع (يُختار تلقائيًا إن وُجد مستودع رئيسي أو وحيد فقط)
+  const [defaultWarehouseId, setDefaultWarehouseId] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     loadProducts();
@@ -103,8 +105,16 @@ export default function POS() {
     loadOffers();
     loadParkedSales();
     loadPriceTiers();
+    loadDefaultWarehouse();
     checkShift();
   }, []);
+
+  const loadDefaultWarehouse = async () => {
+    const warehouses = await db.warehouses.filter((w) => w.isActive).toArray();
+    if (warehouses.length === 0) return;
+    const main = warehouses.find((w) => w.name === 'المستودع الرئيسي');
+    setDefaultWarehouseId(main?.id ?? (warehouses.length === 1 ? warehouses[0].id : undefined));
+  };
 
   useEffect(() => {
     if (showPrintModal && lastSale && invoiceBarcodeRef.current) {
@@ -257,6 +267,7 @@ export default function POS() {
       expectedCash: parseFloat(startingCash),
       totalSales: 0,
       totalCashSales: 0,
+      totalCardSales: 0,
       totalCreditSales: 0,
       totalReturns: 0,
       status: 'open',
@@ -595,7 +606,7 @@ export default function POS() {
     const cashPaid = (paymentType === 'credit' || paymentType === 'wallet') ? 0 : parseFloat(paidAmount) || finalDue;
     const unpaidPortion = finalDue - cashPaid;
 
-    if (paymentType === 'cash' && cashPaid < finalDue) {
+    if ((paymentType === 'cash' || paymentType === 'card') && cashPaid < finalDue) {
       toast.error('المبلغ المدفوع أقل من المطلوب');
       return;
     }
@@ -651,6 +662,7 @@ export default function POS() {
       shiftId: currentShift.id!,
       userId: currentUser.id!,
       userName: currentUser.name,
+      warehouseId: defaultWarehouseId,
       items: saleItems,
       subtotal,
       discount: discountTotal,
@@ -695,8 +707,17 @@ export default function POS() {
 
       // Update stock
       for (const item of cart) {
-        await db.products.update(item.product.id!, {
-          stock: item.product.stock - item.quantity,
+        await recordStockMovement({
+          productId: item.product.id!,
+          productName: item.product.name,
+          stockBefore: item.product.stock,
+          quantityDelta: -item.quantity,
+          type: 'sale',
+          userId: currentUser.id!,
+          userName: currentUser.name,
+          warehouseId: defaultWarehouseId,
+          refType: 'sale',
+          refId: saleId,
         });
       }
 
@@ -770,11 +791,13 @@ export default function POS() {
       }
 
       // Update shift
-      const cashSales = paymentType === 'cash' ? finalDue : cashPaid;
+      const cardSales = paymentType === 'card' ? finalDue : 0;
+      const cashSales = paymentType === 'card' ? 0 : paymentType === 'cash' ? finalDue : cashPaid;
       const creditSales = paymentType === 'credit' ? finalDue : unpaidPortion;
       await db.shifts.update(currentShift.id!, {
         totalSales: currentShift.totalSales + total,
         totalCashSales: currentShift.totalCashSales + cashSales,
+        totalCardSales: currentShift.totalCardSales + cardSales,
         totalCreditSales: currentShift.totalCreditSales + creditSales,
         expectedCash: currentShift.expectedCash + cashSales,
       });
@@ -1390,8 +1413,8 @@ export default function POS() {
               )}
 
               {/* Payment type buttons */}
-              <div className="grid grid-cols-2 gap-2">
-                {(['cash', 'credit', 'mixed', 'wallet'] as const).map((type) => (
+              <div className="grid grid-cols-3 gap-2">
+                {(['cash', 'card', 'credit', 'mixed', 'wallet'] as const).map((type) => (
                   <button
                     key={type}
                     onClick={() => setPaymentType(type)}
@@ -1404,7 +1427,7 @@ export default function POS() {
                         : 'border-slate-200 hover:bg-slate-50'
                     }`}
                   >
-                    {type === 'cash' ? '💵 نقدي' : type === 'credit' ? '📋 آجل' : type === 'mixed' ? '🔀 مختلط' : '👛 محفظة'}
+                    {type === 'cash' ? '💵' : type === 'card' ? '💳' : type === 'credit' ? '📋' : type === 'mixed' ? '🔀' : '👛'} {PAYMENT_TYPE_LABELS[type]}
                   </button>
                 ))}
               </div>
@@ -1680,7 +1703,7 @@ export default function POS() {
                 )}
                 <div className="receipt-center text-xs text-slate-500 pt-1">
                   <p>طريقة الدفع</p>
-                  <p>{lastSale.paymentType === 'cash' ? 'نقدي' : lastSale.paymentType === 'credit' ? 'آجل' : lastSale.paymentType === 'wallet' ? 'محفظة' : 'مختلط'}</p>
+                  <p>{PAYMENT_TYPE_LABELS[lastSale.paymentType]}</p>
                 </div>
 
                 {/* معلومات التوصيل على الإيصال */}

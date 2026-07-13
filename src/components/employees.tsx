@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, type Employee } from '@/lib/local-db';
+import { db, type Employee, type User } from '@/lib/local-db';
 import { formatCurrency, formatDate, useAppStore } from '@/lib/store';
 import { Users2, Plus, Edit2, Trash2, X, Save, Search, Check, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,22 +13,26 @@ export default function Employees() {
   const { settings } = useAppStore();
   const accent = settings?.printAccentColor || '#10b981';
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Employee | null>(null);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', position: 'كاشير', department: 'المبيعات', salary: '', hireDate: '', isActive: true, notes: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', position: 'كاشير', department: 'المبيعات', salary: '', hireDate: '', isActive: true, notes: '', userId: '' });
 
   useEffect(() => { loadEmployees(); }, []);
 
-  const loadEmployees = async () => setEmployees(await db.employees.toArray());
+  const loadEmployees = async () => {
+    setEmployees(await db.employees.toArray());
+    setUsers(await db.users.toArray());
+  };
 
   const openModal = (emp?: Employee) => {
     if (emp) {
       setEditing(emp);
-      setForm({ name: emp.name, phone: emp.phone, email: emp.email || '', position: emp.position, department: emp.department, salary: String(emp.salary), hireDate: new Date(emp.hireDate).toISOString().split('T')[0], isActive: emp.isActive, notes: emp.notes || '' });
+      setForm({ name: emp.name, phone: emp.phone, email: emp.email || '', position: emp.position, department: emp.department, salary: String(emp.salary), hireDate: new Date(emp.hireDate).toISOString().split('T')[0], isActive: emp.isActive, notes: emp.notes || '', userId: emp.userId ? String(emp.userId) : '' });
     } else {
       setEditing(null);
-      setForm({ name: '', phone: '', email: '', position: 'كاشير', department: 'المبيعات', salary: '', hireDate: new Date().toISOString().split('T')[0], isActive: true, notes: '' });
+      setForm({ name: '', phone: '', email: '', position: 'كاشير', department: 'المبيعات', salary: '', hireDate: new Date().toISOString().split('T')[0], isActive: true, notes: '', userId: '' });
     }
     setShowModal(true);
   };
@@ -38,7 +42,8 @@ export default function Employees() {
     const data: Omit<Employee, 'id'> = {
       name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || undefined,
       position: form.position, department: form.department, salary: parseFloat(form.salary) || 0,
-      hireDate: new Date(form.hireDate || Date.now()), isActive: form.isActive, notes: form.notes.trim() || undefined, createdAt: editing?.createdAt || new Date(),
+      hireDate: new Date(form.hireDate || Date.now()), isActive: form.isActive, notes: form.notes.trim() || undefined,
+      userId: form.userId ? parseInt(form.userId) : undefined, createdAt: editing?.createdAt || new Date(),
     };
     if (editing) { await db.employees.update(editing.id!, data); toast.success('تم تحديث الموظف'); }
     else { await db.employees.add(data); toast.success('تم إضافة الموظف'); }
@@ -145,6 +150,12 @@ export default function Employees() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-xs text-slate-500 mb-1">الراتب الشهري</label><input type="number" step="0.001" value={form.salary} onChange={e => setForm({...form, salary: e.target.value})} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
                 <div><label className="block text-xs text-slate-500 mb-1">تاريخ التعيين</label><input type="date" value={form.hireDate} onChange={e => setForm({...form, hireDate: e.target.value})} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+              </div>
+              <div><label className="block text-xs text-slate-500 mb-1">ربط بحساب مستخدم (اختياري)</label>
+                <select value={form.userId} onChange={e => setForm({...form, userId: e.target.value})} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" dir="rtl">
+                  <option value="">-- بدون ربط --</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.username})</option>)}
+                </select>
               </div>
               <div><label className="block text-xs text-slate-500 mb-1">ملاحظات</label><textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} rows={2} className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none" /></div>
               <label className="flex items-center gap-2 cursor-pointer">

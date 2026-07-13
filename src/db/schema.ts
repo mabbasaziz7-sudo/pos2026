@@ -85,6 +85,7 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'permissions', type: 'jsonb', default: "'[]'" },
       { name: 'isActive', type: 'boolean', default: 'true' },
       { name: 'createdAt', type: 'timestamp' },
+      { name: 'lastLoginAt', type: 'timestamp', nullable: true },
     ],
   },
   shifts: {
@@ -100,6 +101,7 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'difference', type: 'numeric', nullable: true },
       { name: 'totalSales', type: 'numeric', default: '0' },
       { name: 'totalCashSales', type: 'numeric', default: '0' },
+      { name: 'totalCardSales', type: 'numeric', default: '0' },
       { name: 'totalCreditSales', type: 'numeric', default: '0' },
       { name: 'totalReturns', type: 'numeric', default: '0' },
       { name: 'status', type: 'text', default: "'open'" },
@@ -115,6 +117,7 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'shiftId', type: 'integer' },
       { name: 'userId', type: 'integer' },
       { name: 'userName', type: 'text' },
+      { name: 'warehouseId', type: 'integer', nullable: true },
       { name: 'items', type: 'jsonb', default: "'[]'" },
       { name: 'subtotal', type: 'numeric', default: '0' },
       { name: 'discount', type: 'numeric', default: '0' },
@@ -366,6 +369,7 @@ export const SCHEMA: Record<string, TableDef> = {
     columns: [
       id(),
       { name: 'name', type: 'text' },
+      { name: 'userId', type: 'integer', nullable: true },
       { name: 'phone', type: 'text', default: "''" },
       { name: 'email', type: 'text', nullable: true },
       { name: 'position', type: 'text', default: "''" },
@@ -500,6 +504,93 @@ export const SCHEMA: Record<string, TableDef> = {
       { name: 'userId', type: 'integer' },
       { name: 'userName', type: 'text' },
       { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
+
+  // ===== المستودعات =====
+  warehouses: {
+    columns: [
+      id(),
+      { name: 'name', type: 'text' },
+      { name: 'address', type: 'text', nullable: true },
+      { name: 'isActive', type: 'boolean', default: 'true' },
+      { name: 'createdAt', type: 'timestamp' },
+    ],
+  },
+  productWarehouseStock: {
+    columns: [
+      id(),
+      { name: 'productId', type: 'integer' },
+      { name: 'warehouseId', type: 'integer' },
+      { name: 'stock', type: 'numeric', default: '0' },
+      { name: 'minStock', type: 'numeric', default: '0' },
+      { name: 'updatedAt', type: 'timestamp' },
+    ],
+  },
+  stockMovements: {
+    columns: [
+      id(),
+      { name: 'productId', type: 'integer' },
+      { name: 'productName', type: 'text' },
+      { name: 'warehouseId', type: 'integer', nullable: true },
+      { name: 'type', type: 'text' },
+      { name: 'quantityDelta', type: 'numeric', default: '0' },
+      { name: 'stockBefore', type: 'numeric', default: '0' },
+      { name: 'stockAfter', type: 'numeric', default: '0' },
+      { name: 'refType', type: 'text', nullable: true },
+      { name: 'refId', type: 'integer', nullable: true },
+      { name: 'reason', type: 'text', nullable: true },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+      { name: 'date', type: 'timestamp' },
+    ],
+  },
+
+  // ===== مرتجع الشراء =====
+  purchaseReturns: {
+    columns: [
+      id(),
+      { name: 'purchaseReturnNumber', type: 'text' },
+      { name: 'originalInvoiceId', type: 'integer' },
+      { name: 'originalInvoiceNumber', type: 'text' },
+      { name: 'supplierId', type: 'integer' },
+      { name: 'supplierName', type: 'text' },
+      { name: 'items', type: 'jsonb', default: "'[]'" },
+      { name: 'refundAmount', type: 'numeric', default: '0' },
+      { name: 'reason', type: 'text', nullable: true },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+      { name: 'date', type: 'timestamp' },
+    ],
+  },
+
+  // ===== سلف الموظفين =====
+  employeeAdvances: {
+    columns: [
+      id(),
+      { name: 'employeeId', type: 'integer' },
+      { name: 'employeeName', type: 'text' },
+      { name: 'amount', type: 'numeric', default: '0' },
+      { name: 'remainingBalance', type: 'numeric', default: '0' },
+      { name: 'reason', type: 'text', nullable: true },
+      { name: 'status', type: 'text', default: "'active'" },
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+      { name: 'date', type: 'timestamp' },
+    ],
+  },
+
+  // ===== سجل التدقيق =====
+  auditLogs: {
+    columns: [
+      id(),
+      { name: 'userId', type: 'integer' },
+      { name: 'userName', type: 'text' },
+      { name: 'action', type: 'text' },
+      { name: 'tableName', type: 'text', nullable: true },
+      { name: 'recordId', type: 'integer', nullable: true },
+      { name: 'details', type: 'jsonb', nullable: true },
+      { name: 'date', type: 'timestamp' },
     ],
   },
 };

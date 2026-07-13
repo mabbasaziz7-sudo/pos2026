@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, type User } from '@/lib/local-db';
+import { db, type User, logAudit } from '@/lib/local-db';
 import { useAppStore } from '@/lib/store';
 import {
   Shield,
@@ -22,8 +22,10 @@ const allPermissions = [
   { id: 'sales', label: 'المبيعات' },
   { id: 'returns', label: 'المرتجعات' },
   { id: 'purchases', label: 'المشتريات' },
+  { id: 'purchase-returns', label: 'مرتجع الشراء' },
   { id: 'products', label: 'إدارة المنتجات' },
   { id: 'inventory', label: 'إدارة المخزون' },
+  { id: 'warehouses', label: 'إدارة المستودعات' },
   { id: 'shifts', label: 'إدارة الورديات' },
   { id: 'suppliers', label: 'إدارة الموردين' },
   { id: 'customers', label: 'إدارة العملاء' },
@@ -130,9 +132,11 @@ export default function Users() {
         const updateData: any = { ...data };
         if (formData.password) updateData.password = formData.password;
         await db.users.update(editingUser.id!, updateData);
+        if (currentUser) await logAudit(currentUser.id!, currentUser.name, 'update_user', 'users', editingUser.id, { username: data.username });
         toast.success('تم تحديث المستخدم');
       } else {
-        await db.users.add({ ...data, password: formData.password } as User);
+        const newId = await db.users.add({ ...data, password: formData.password } as User);
+        if (currentUser) await logAudit(currentUser.id!, currentUser.name, 'create_user', 'users', newId, { username: data.username });
         toast.success('تم إضافة المستخدم');
       }
       setShowModal(false);
@@ -149,6 +153,7 @@ export default function Users() {
     }
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
     await db.users.delete(id);
+    if (currentUser) await logAudit(currentUser.id!, currentUser.name, 'delete_user', 'users', id);
     toast.success('تم حذف المستخدم');
     loadUsers();
   };
@@ -159,6 +164,7 @@ export default function Users() {
       return;
     }
     await db.users.update(user.id!, { isActive: !user.isActive });
+    if (currentUser) await logAudit(currentUser.id!, currentUser.name, user.isActive ? 'deactivate_user' : 'activate_user', 'users', user.id);
     toast.success(user.isActive ? 'تم تعطيل المستخدم' : 'تم تفعيل المستخدم');
     loadUsers();
   };

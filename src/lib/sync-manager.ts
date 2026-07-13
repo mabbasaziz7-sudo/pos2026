@@ -81,7 +81,7 @@ export async function processSyncQueue(): Promise<{ synced: number; failed: numb
 }
 
 // ── refresh cache from server ─────────────────────────────────────
-const PRIORITY_TABLES = ['products','customers','settings','categories','offers','coupons','priceTiers','loyaltyTiers','employees'];
+const PRIORITY_TABLES = ['products','customers','settings','categories','offers','coupons','priceTiers','loyaltyTiers','employees','warehouses'];
 
 export async function refreshCache(tables: string[] = PRIORITY_TABLES) {
   const db = getOfflineDb();

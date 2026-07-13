@@ -8,6 +8,7 @@ import {
   type Sale,
   generateReturnNumber,
   generateVoucherCode,
+  recordStockMovement,
 } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatDate } from '@/lib/store';
 import { openPrintWindow } from '@/lib/print';
@@ -120,14 +121,6 @@ export default function Returns() {
     let voucherCode: string | undefined;
 
     try {
-      // Restock returned items
-      for (const item of items) {
-        const product = await db.products.get(item.productId);
-        if (product) {
-          await db.products.update(item.productId, { stock: product.stock + item.quantity });
-        }
-      }
-
       if (refundMethod === 'credit') {
         voucherCode = generateVoucherCode();
         await db.vouchers.add({
@@ -163,6 +156,24 @@ export default function Returns() {
       };
       const id = await db.returns.add(newReturn);
       newReturn.id = id;
+
+      // Restock returned items
+      for (const item of items) {
+        const product = await db.products.get(item.productId);
+        if (product) {
+          await recordStockMovement({
+            productId: item.productId,
+            productName: item.productName,
+            stockBefore: product.stock,
+            quantityDelta: item.quantity,
+            type: 'return',
+            userId: currentUser.id!,
+            userName: currentUser.name,
+            refType: 'return',
+            refId: id,
+          });
+        }
+      }
 
       toast.success('تم تسجيل المرتجع بنجاح');
       loadReturns();

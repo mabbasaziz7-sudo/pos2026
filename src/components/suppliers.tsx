@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, type Supplier, type SupplierInvoice, type Product } from '@/lib/local-db';
+import { db, type Supplier, type SupplierInvoice, type Product, recordStockMovement } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatDate } from '@/lib/store';
 import { openPrintWindow } from '@/lib/print';
 import {
@@ -20,7 +20,7 @@ import {
 import toast from 'react-hot-toast';
 
 export default function Suppliers() {
-  const { settings } = useAppStore();
+  const { settings, currentUser } = useAppStore();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,7 +135,7 @@ export default function Suppliers() {
   const invoiceRemaining = invoiceTotal - (parseFloat(invoicePaid) || 0);
 
   const saveInvoice = async () => {
-    if (!selectedSupplier || invoiceItems.length === 0) return;
+    if (!selectedSupplier || invoiceItems.length === 0 || !currentUser) return;
     const invoice: SupplierInvoice = {
       supplierId: selectedSupplier.id!,
       invoiceNumber: invoiceNumber,
@@ -147,7 +147,7 @@ export default function Suppliers() {
       notes: invoiceNotes,
     };
 
-    await db.supplierInvoices.add(invoice);
+    const invoiceId = await db.supplierInvoices.add(invoice);
 
     // Update supplier balance
     await db.suppliers.update(selectedSupplier.id!, {
@@ -158,11 +158,18 @@ export default function Suppliers() {
     for (const item of invoiceItems) {
       const product = await db.products.get(item.productId);
       if (product) {
-        await db.products.update(item.productId, {
-          stock: product.stock + item.quantity,
-          cost: item.price,
-          updatedAt: new Date(),
+        await recordStockMovement({
+          productId: item.productId,
+          productName: product.name,
+          stockBefore: product.stock,
+          quantityDelta: item.quantity,
+          type: 'purchase',
+          userId: currentUser.id!,
+          userName: currentUser.name,
+          refType: 'supplierInvoice',
+          refId: invoiceId,
         });
+        await db.products.update(item.productId, { cost: item.price, updatedAt: new Date() });
       }
     }
 

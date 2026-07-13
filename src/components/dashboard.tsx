@@ -8,8 +8,20 @@ import {
   Receipt, Package, Warehouse, RotateCcw, Truck, BarChart2,
   Gift, Clock, ChevronLeft, ArrowUpRight,
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, CartesianGrid, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 
 interface DayData { day: string; total: number; }
+
+function WeekChartTooltip({ active, payload, accent }: { active?: boolean; payload?: { payload: DayData }[]; accent: string }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-xs">
+      <p className="text-slate-500 mb-0.5">{d.day}</p>
+      <p className="font-bold" style={{ color: accent }}>{formatCurrency(d.total)}</p>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { currentUser, currentShift, settings, setActiveTab } = useAppStore();
@@ -68,7 +80,6 @@ export default function Dashboard() {
     }
   };
 
-  const maxWeek = Math.max(...weekData.map(d => d.total), 1);
   const dayOfWeek = new Date().toLocaleDateString('ar-SA', { weekday: 'long' });
   const dateStr = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -147,28 +158,21 @@ export default function Dashboard() {
             </button>
           </div>
           {weekData.every(d => d.total === 0) ? (
-            <div className="h-40 flex items-center justify-center text-slate-400 text-sm">لا توجد مبيعات في الأسبوع الحالي</div>
+            <div className="h-44 flex items-center justify-center text-slate-400 text-sm">لا توجد مبيعات في الأسبوع الحالي</div>
           ) : (
-            <div className="flex items-end gap-2 h-40">
-              {weekData.map((d, i) => {
-                const pct = (d.total / maxWeek) * 100;
-                const isToday = i === weekData.length - 1;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
-                    <span className="text-xs text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      {formatCurrency(d.total)}
-                    </span>
-                    <div className="w-full rounded-t-lg transition-all duration-500 relative" style={{
-                      height: `${Math.max(pct, 4)}%`,
-                      background: isToday ? accentLight : `${accentLight}55`,
-                      minHeight: 4,
-                    }}>
-                      {isToday && <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full" style={{ background: accentLight }} />}
-                    </div>
-                    <span className="text-xs text-slate-500">{d.day}</span>
-                  </div>
-                );
-              })}
+            <div className="h-44" dir="ltr">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weekData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }} barCategoryGap="24%">
+                  <CartesianGrid vertical={false} stroke="#e1e0d9" strokeDasharray="3 3" />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#898781' }} />
+                  <Tooltip cursor={{ fill: `${accentLight}0d` }} content={<WeekChartTooltip accent={accentLight} />} />
+                  <Bar dataKey="total" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                    {weekData.map((d, i) => (
+                      <Cell key={i} fill={i === weekData.length - 1 ? accentLight : `${accentLight}55`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           )}
         </div>

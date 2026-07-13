@@ -25,6 +25,13 @@ export async function POST(req: NextRequest) {
     const token = createSessionToken({ id: user.id, role: user.role });
     await setSessionCookie(token);
 
+    const now = new Date();
+    await query('UPDATE "users" SET "lastLoginAt" = $1 WHERE id = $2', [now, user.id]);
+    await query(
+      'INSERT INTO "auditLogs" ("userId", "userName", "action", "tableName", "recordId", "details", "date") VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [user.id, user.name, 'login', 'users', user.id, null, now]
+    );
+
     const { password: _pw, ...safeUser } = user;
     return NextResponse.json({ user: safeUser });
   } catch (err) {

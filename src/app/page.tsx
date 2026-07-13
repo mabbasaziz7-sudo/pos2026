@@ -10,8 +10,10 @@ import POS from '@/components/pos';
 import Sales from '@/components/sales';
 import Returns from '@/components/returns';
 import Purchases from '@/components/purchases';
+import PurchaseReturns from '@/components/purchase-returns';
 import Products from '@/components/products';
 import Inventory from '@/components/inventory';
+import Warehouses from '@/components/warehouses';
 import Shifts from '@/components/shifts';
 import Suppliers from '@/components/suppliers';
 import Customers from '@/components/customers';
@@ -20,6 +22,7 @@ import Vouchers from '@/components/vouchers';
 import Campaigns from '@/components/campaigns';
 import Reports from '@/components/reports';
 import Users from '@/components/users';
+import AuditLogs from '@/components/audit-logs';
 import Backup from '@/components/backup';
 import Settings from '@/components/settings';
 import Dashboard from '@/components/dashboard';
@@ -81,8 +84,10 @@ export default function HomePage() {
       {activeTab === 'sales' && <Sales />}
       {activeTab === 'returns' && <Returns />}
       {activeTab === 'purchases' && <Purchases />}
+      {activeTab === 'purchase-returns' && <PurchaseReturns />}
       {activeTab === 'products' && <Products />}
       {activeTab === 'inventory' && <Inventory />}
+      {activeTab === 'warehouses' && <Warehouses />}
       {activeTab === 'shifts' && <Shifts />}
       {activeTab === 'suppliers' && <Suppliers />}
       {activeTab === 'customers' && <Customers />}
@@ -97,6 +102,7 @@ export default function HomePage() {
       {activeTab === 'financials' && <Financials />}
       {activeTab === 'reports' && <Reports />}
       {activeTab === 'users' && <Users />}
+      {activeTab === 'audit-logs' && <AuditLogs />}
       {activeTab === 'backup' && <Backup />}
       {activeTab === 'themes' && <Themes />}
       {activeTab === 'settings' && <Settings />}

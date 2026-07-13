@@ -29,7 +29,7 @@ export default function Transactions() {
 
       // مبيعات (دخل)
       for (const sale of sales) {
-        const cashAmount = sale.paymentType === 'cash' ? Number(sale.total) : sale.paymentType === 'mixed' ? Number(sale.paid) : 0;
+        const cashAmount = (sale.paymentType === 'cash' || sale.paymentType === 'card') ? Number(sale.total) : sale.paymentType === 'mixed' ? Number(sale.paid) : 0;
         if (cashAmount > 0) {
           txns.push({ id: `sale-${sale.id}`, date: new Date(sale.date), description: `فاتورة مبيعات ${sale.invoiceNumber}`, amount: cashAmount, type: 'in', category: 'مبيعات', ref: sale.invoiceNumber });
         }

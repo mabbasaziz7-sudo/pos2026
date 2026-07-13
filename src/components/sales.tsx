@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { db, type Sale } from '@/lib/local-db';
+import { db, type Sale, PAYMENT_TYPE_LABELS, PAYMENT_TYPE_BADGE_CLASSES } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatDate } from '@/lib/store';
 import { sendInvoiceWhatsApp } from '@/lib/whatsapp-gateway';
 import { Receipt, Search, Eye, Printer, X, RotateCcw, MessageCircle } from 'lucide-react';
@@ -183,12 +183,8 @@ export default function Sales() {
                   <td className="px-4 py-3 text-sm text-slate-700">{sale.customerName || 'نقدي'}</td>
                   <td className="px-4 py-3 text-sm font-medium text-emerald-600">{formatCurrency(sale.total)}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      sale.paymentType === 'cash' ? 'bg-emerald-100 text-emerald-700' :
-                      sale.paymentType === 'credit' ? 'bg-amber-100 text-amber-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {sale.paymentType === 'cash' ? 'نقدي' : sale.paymentType === 'credit' ? 'آجل' : 'مختلط'}
+                    <span className={`px-2 py-1 rounded-full text-xs ${PAYMENT_TYPE_BADGE_CLASSES[sale.paymentType]}`}>
+                      {PAYMENT_TYPE_LABELS[sale.paymentType]}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -398,7 +394,7 @@ export default function Sales() {
                 )}
                 <div className="receipt-center text-xs text-slate-500 pt-1">
                   <p>طريقة الدفع</p>
-                  <p>{printSale.paymentType === 'cash' ? 'نقدي' : printSale.paymentType === 'credit' ? 'آجل' : 'مختلط'}</p>
+                  <p>{PAYMENT_TYPE_LABELS[printSale.paymentType]}</p>
                 </div>
               </div>
 

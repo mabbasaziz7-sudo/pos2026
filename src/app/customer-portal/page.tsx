@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { db, type Customer, type Sale, type WalletTransaction, type LoyaltyTier } from '@/lib/local-db';
+import { db, type Customer, type Sale, type WalletTransaction, type LoyaltyTier, PAYMENT_TYPE_LABELS } from '@/lib/local-db';
 import { formatCurrency, setCurrencyCode } from '@/lib/store';
 import { CUSTOMER_PORTAL_CHANNEL, type CustomerPortalMessage } from '@/lib/customer-portal-channel';
 import {
@@ -59,7 +59,7 @@ function SaleRow({ sale }: { sale: Sale }) {
         </div>
         <div>
           <p className="text-sm font-medium text-white">{sale.invoiceNumber}</p>
-          <p className="text-xs text-white/50">{new Date(sale.date).toLocaleDateString('ar-SA')} — {sale.paymentType === 'cash' ? 'نقدي' : sale.paymentType === 'credit' ? 'آجل' : sale.paymentType === 'mixed' ? 'مختلط' : 'محفظة'}</p>
+          <p className="text-xs text-white/50">{new Date(sale.date).toLocaleDateString('ar-SA')} — {PAYMENT_TYPE_LABELS[sale.paymentType]}</p>
         </div>
       </div>
       <div className="text-left">

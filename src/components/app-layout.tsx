@@ -18,8 +18,10 @@ const menuItems = [
   { id: 'sales',      label: 'المبيعات',          icon: Receipt,         color: 'text-lime-400' },
   { id: 'returns',    label: 'المرتجعات',         icon: RotateCcw,       color: 'text-red-400' },
   { id: 'purchases',  label: 'المشتريات',         icon: ClipboardList,   color: 'text-violet-400' },
+  { id: 'purchase-returns', label: 'مرتجع الشراء', icon: RotateCcw,     color: 'text-red-300' },
   { id: 'products',   label: 'المنتجات',          icon: Package,         color: 'text-blue-400' },
   { id: 'inventory',  label: 'المخزون',           icon: Warehouse,       color: 'text-amber-400' },
+  { id: 'warehouses', label: 'المستودعات',        icon: Warehouse,       color: 'text-orange-300' },
   { id: 'shifts',     label: 'الورديات',          icon: Clock,           color: 'text-purple-400' },
   { id: 'suppliers',  label: 'الموردين',          icon: Truck,           color: 'text-rose-400' },
   { id: 'customers',  label: 'العملاء',           icon: Users,           color: 'text-cyan-400' },
@@ -34,6 +36,7 @@ const menuItems = [
   { id: 'financials', label: 'السندات والرواتب', icon: FileText,        color: 'text-green-300' },
   { id: 'reports',    label: 'التقارير',          icon: BarChart3,       color: 'text-orange-400' },
   { id: 'users',      label: 'المستخدمين',        icon: Shield,          color: 'text-indigo-400' },
+  { id: 'audit-logs', label: 'سجل التدقيق',       icon: Shield,          color: 'text-indigo-300' },
   { id: 'backup',     label: 'نسخ احتياطي',      icon: Download,        color: 'text-teal-400' },
   { id: 'themes',     label: 'القوالب والمظاهر', icon: Palette,         color: 'text-pink-300' },
   { id: 'settings',   label: 'الإعدادات',         icon: Settings,        color: 'text-slate-400' },
@@ -117,7 +120,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const canAccess = (tabId: string) => {
     if (currentUser.role === 'admin') return true;
-    if (tabId === 'users' || tabId === 'settings' || tabId === 'themes') return false;
+    if (tabId === 'users' || tabId === 'settings' || tabId === 'themes' || tabId === 'audit-logs') return false;
     if (tabId === 'dashboard') return true;
     return currentUser.permissions?.includes(tabId) ?? false;
   };

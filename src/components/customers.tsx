@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, type Customer, type Sale, type Payment } from '@/lib/local-db';
+import { db, type Customer, type Sale, type Payment, PAYMENT_TYPE_LABELS, PAYMENT_TYPE_BADGE_CLASSES } from '@/lib/local-db';
 import { useAppStore, formatCurrency, formatDate } from '@/lib/store';
 import { openPrintWindow } from '@/lib/print';
 import { printLoyaltyCard } from '@/lib/print-cards';
@@ -584,8 +584,8 @@ export default function Customers() {
                         <td className="px-3 py-2 text-emerald-600">{formatCurrency(sale.paid)}</td>
                         <td className="px-3 py-2 text-rose-600">{formatCurrency(sale.remaining)}</td>
                         <td className="px-3 py-2">
-                          <span className={`px-2 py-0.5 rounded-full text-xs ${sale.paymentType === 'cash' ? 'bg-emerald-100 text-emerald-700' : sale.paymentType === 'credit' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {sale.paymentType === 'cash' ? 'نقدي' : sale.paymentType === 'credit' ? 'آجل' : 'مختلط'}
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${PAYMENT_TYPE_BADGE_CLASSES[sale.paymentType]}`}>
+                            {PAYMENT_TYPE_LABELS[sale.paymentType]}
                           </span>
                         </td>
                       </tr>
